@@ -5,7 +5,7 @@
   "main": "electron-main.js",
   "private": true,
   "scripts": {
-    "test": "node --test tests/catalog-critical.test.cjs tests/catalog-safety.test.cjs",
+    "test": "node --test tests/catalog-critical.test.cjs tests/catalog-safety.test.cjs tests/catalog-additional.test.cjs",
     "start": "electron .",
     "dev:web": "npx serve .",
     "dist": "electron-builder --win nsis"

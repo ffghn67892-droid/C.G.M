@@ -4,6 +4,8 @@
 
 현재 기본 검사는 29개(기존23 + 이번6). 이번 복원: R1 MTGA 구형 완료 이관, R2 Might 구형 완료 이관, R3 초기 구매 지출·실패 복구, R4 편집 일정 안내, R5 단계 캐시·후불 지급, R6 갱신 경계 단일 계산.
 
+> **2026-09-19 갱신**: 아래 표가 다루는 10개 파일은 Stage H4(AI 작업 친화적 구조 개편)에서 삭제되었다. 표의 `tests/*.test.cjs` 링크는 더 이상 해당 파일을 가리키지 않으며, 대조표 자체는 당시 분석 기록으로 남긴다. 무엇이 이관되고 무엇이 폐기되었는지는 문서 하단 "2026-09-19 후속" 절을 참고한다.
+
 ## 이번 발견을 기존 테스트가 잡을 수 있었는가
 
 - dateKey: daily-quests.test.cjs:111의 구형 MTGA 완료 변환 시나리오가 직접 해당한다. 다만 현재 하네스로 원본 그대로 실행하면 catalogVersion=1인 새 fixture와 삭제된 UI 때문에 정확한 회귀 탐지가 되지 않는다. pre-catalog fixture와 데이터 단언으로 이관했다면 잡혔다. 같은 Might 분기는 기존 명시 검사가 없어서 이번에 추가했다.
@@ -90,3 +92,14 @@
 | [status-rules.test.cjs:27](tests/status-rules.test.cjs#L27) | Direct Might and Hearthstone weekly quests still show yellow | 공백 — Might·HS 직접 주간의 노란색 상태 명시 단언 없음. |
 | [storage-commit.test.cjs:5](tests/storage-commit.test.cjs#L5) | KARDS 보상 저장 실패는 진행도와 원장을 되돌리고 재시도할 수 있다 | 대체 — 공통 보상 실패 복구와 KARDS UI 재시도 검사. |
 | [render-purity.test.cjs:5](tests/render-purity.test.cjs#L5) | 스냅 화면 렌더링은 주간 보상을 지급하지 않는다 | 공백 — Snap 렌더링 반복 자체가 주간 보상을 지급하지 않음을 별도 단언하지 않음. |
+
+## 2026-09-19 후속: 10개 제외 파일 폐기, 통과 검사 이관
+
+AI 작업 친화적 구조 개편(Stage H4)에서 위 10개 파일을 실제로 개별 실행해 어느 선언이 지금도 그대로 통과하는지 확인했다(재작성이나 셀렉터 추정이 아닌 실행 결과 기준). 74개 중 10개가 현재도 그대로 통과했다:
+
+- `manager.test.cjs:4`(메인 9게임·독립 초기화), `reset-all.test.cjs`의 2개(전체 초기화 확인·취소, 확정 초기화 복구), `additional-regressions.test.cjs`의 3개(KARDS 상자 5티어 금액, Duel Links mute 자정 복귀, Might 01:00/04:40 경계), `rule-catalog.test.cjs`의 2개(주간·N일 주기 경계, 잘못된 참조·시각·수량 거부), `daily-quests.test.cjs:215`(전 게임 일/주 경계 KST), `render-purity.test.cjs:5`(스냅 렌더링 무지급).
+
+이 10개를 그대로 `tests/catalog-additional.test.cjs`로 옮기고 `npm.cmd test`에 포함했다(핵심 29개 + 이관 10개 = 39개). 10개 파일 자체는 삭제했다.
+
+**남은 "부분/공백" 행은 재현하지 않았다.** 실패한 나머지 64개 선언은 대부분 현재 존재하지 않는 화면·함수를 참조한다 — 2단계 설정 미리보기(`#previewSetup`/`#commitSetup`), 게임별 전용 조작(`.win-add`, `#chestTier`, `#dailyRewardModal`), 그리고 카탈로그 엔진 이전의 `passAwards()` 함수(현재 코드에 없음, `ReferenceError`) 등이다. 이 함수·화면들이 지키던 실질적 요구사항(보상 정확한 금액, 지급 멱등성, 중복 지급 방지)은 이미 현재 엔진 기준의 핵심 스위트(E1~E8, F, 회귀 6개)가 `catalogAction()`/`PASS_DATA` 경로로 별도 검증한다 — 예: E2가 하스스톤 pass free/paid 반복 보상 멱등성을, E5가 Master Duel 월간 상한·전체 패스 보상을 이미 다룬다. 따라서 옛 API를 대상으로 한 나머지 선언을 새 UI에 맞춰 다시 쓰는 대신 폐기했다. 이는 새 커버리지를 추가한 것이 아니라 이미 중복된 검증을 정리한 것이므로, 위 표의 "부분/공백" 표시가 가리키던 좁은 틈(예: 특정 게임의 정확한 반복 지급 문구, 특정 색상 상태 조합)은 여전히 미검증 상태로 남아 있다. 회귀나 기능 변경으로 이 틈이 실제 문제가 될 때 그 시점의 요구사항으로 새 테스트를 추가한다.
+

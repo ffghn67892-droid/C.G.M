@@ -1,6 +1,6 @@
 # 범용 관리 구성 시스템 — 최상위 설계 기준
 
-> 현재 상태: **2026-09-19 A~E8·F·G 완료.** 현재 구조는 [ARCHITECTURE.md](ARCHITECTURE.md), 최종 검증·복구는 [REFACTOR_STAGE_G.md](REFACTOR_STAGE_G.md)를 따른다. 아래 단계별 상태와 파일 배치는 과거 계획·진행 기록이며, 현재 상태보다 우선하지 않는다. 후속 회귀 수정 후 기본 검사는 핵심 29개다. REGRESSION_FIXES.md 및 REGRESSION_TEST_COVERAGE.md를 참조한다.
+> 현재 상태: **2026-09-19 A~E8·F·G 완료.** 현재 구조는 [ARCHITECTURE.md](ARCHITECTURE.md), 최종 검증·복구는 [REFACTOR_STAGE_G.md](REFACTOR_STAGE_G.md)를 따른다. 아래 단계별 상태와 파일 배치는 과거 계획·진행 기록이며, 현재 상태보다 우선하지 않는다. 후속 회귀 수정과 2026-09-19 테스트 정리 후 기본 검사는 39개다(핵심 29 + 이관 10). REGRESSION_FIXES.md 및 REGRESSION_TEST_COVERAGE.md를 참조한다.
 
 > 최종 상태: **E1~E8 완료, F·G 승인 대기.** 기본 9게임과 사용자 게임이 범용 규칙 엔진·편집기·화면을 공유한다. 검증 기본값은 `npm.cmd test` 핵심 18개이며 이전 74개 전체 실행을 반복하지 않는다. Electron 최소 창 9게임·공통 편집기 확인 완료. [REFACTOR_STAGE_E.md](docs/history/REFACTOR_STAGE_E.md)에 이관·검증·복구 및 남은 정리 범위를 기록했다. 아래 이전 진행 상태보다 이 기록이 우선한다.
 

@@ -16,4 +16,4 @@
 | [REGRESSION_FIXES.md](REGRESSION_FIXES.md) | 2026-09-19 회귀 수정 기록(dateKey 이관, 초기 구매 지출 등). |
 | [HANDOFF_HISTORY.md](HANDOFF_HISTORY.md) | 과거 인수인계 상태 배너 전체 아카이브(D~F 단계, 최초 사양 포함). |
 
-`REFACTOR_STAGE_G.md`는 가장 최근 완료 단계 기록이라 루트에 남아 있다. `REGRESSION_TEST_COVERAGE.md`는 폐기된 74개 테스트를 현재 29개 핵심 테스트와 대조한 살아있는 참고 자료라 루트에 남아 있다.
+`REFACTOR_STAGE_G.md`는 가장 최근 완료 단계 기록이라 루트에 남아 있다. `REGRESSION_TEST_COVERAGE.md`는 폐기된 74개 테스트를 현재 39개(핵심 29 + 이관 10) 테스트와 대조한 살아있는 참고 자료라 루트에 남아 있다.

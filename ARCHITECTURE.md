@@ -42,6 +42,20 @@
 
 ## 검증과 배포 경계
 
-기본 검사는 `npm.cmd test` 핵심 29개다. 변경 범위별 추가 검증 원칙은 IMPLEMENTATION_PLAN.md 10절을 따른다. G의 비교 자료와 한계는 REFACTOR_STAGE_G.md에 있다.
+기본 검사는 `npm.cmd test` 39개다(핵심 29개 + Stage H4에서 이관한 10개). 변경 범위별 추가 검증 원칙은 IMPLEMENTATION_PLAN.md 10절을 따른다. G의 비교 자료와 한계는 REFACTOR_STAGE_G.md, 테스트 정리 경위는 REGRESSION_TEST_COVERAGE.md에 있다. `tests/` 디렉터리는 이제 실행하면 전부 통과하는 파일만 남아 있다("제외 파일" 개념 없음).
 
 설치 작업은 사용자 요청으로 중단되어 있다. package.json의 배포 파일 목록은 현재 소스 구성과 동기화했다(2026-09-19). 다만 `npm run dist` 실행이나 설치본 자체를 검증하지는 않았으므로, 소스 실행 확인을 배포·설치본 검증으로 간주하면 안 된다.
+
+`scripts/*.cjs`는 `package.json`에 연결되지 않은 별도 QA/감사 도구다. 필요할 때 `node scripts/<파일>`로 직접 실행한다:
+
+| 스크립트 | 용도 |
+|---|---|
+| build-pass-data.cjs | `pass-source-extract.json`(엑셀 원본)에서 `pass-data.js` 재생성 |
+| checkpoint.cjs | 단계 시작 전 소스 스냅샷을 `.refactor-checkpoints/`에 저장 |
+| desktop-smoke.cjs | 격리 프로필로 Electron 데스크톱 기동 스모크 테스트 |
+| verify-package.cjs | 빌드된 asar 내 파일이 `package.json`의 `build.files`와 일치하는지 검증 |
+| refactor-baseline.cjs / refactor-coverage-hook.cjs | A단계 기준선(테스트·커버리지) 측정·계측 |
+| refactor-perf.cjs / refactor-f-benchmark.cjs / refactor-f-runtime.cjs | 격리 렌더러·Electron 런타임 성능 측정(F단계) |
+| refactor-g-cleanup.cjs / refactor-g-style-audit.cjs / refactor-g-migration-audit.cjs | 미사용 코드 추출, 스타일/CSS 감사, 이전 저장 이관 비교(G단계) |
+| kards-catalog-qa.cjs / universal-catalog-qa.cjs / catalog-stages-qa.cjs | D·D보완·E1~E8 단계별 Electron 화면 QA(스크린샷·콘솔 오류 수집) |
+| regression-performance.cjs | 회귀 수정 전후 응답시간 비교(REGRESSION_FIXES.md 근거 자료) |
