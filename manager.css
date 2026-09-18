@@ -25,7 +25,7 @@
 .form-grid fieldset { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2, minmax(0px, 1fr)); gap: 10px; border: 1px solid rgb(66, 76, 66); border-radius: 8px; }
 .form-grid input,  .form-grid select,  #chestTier { background: rgb(23, 29, 24); border: 1px solid rgb(78, 91, 78); border-radius: 6px; color: rgb(237, 242, 232); padding: 9px; min-width: 0px; width: 100%; box-sizing: border-box; }
 .form-grid input[type="checkbox"],  input[type="checkbox"] { width: auto; accent-color: var(--lime); }
-.manager-dialog button,  .compact-card button,  .overview-card button,  .setup-empty button,  #gameToolbar button { background: rgb(53, 67, 47); border: 1px solid rgb(94, 118, 83); color: rgb(237, 243, 232); border-radius: 7px; padding: 8px 12px; cursor: pointer; }
+.manager-dialog button,  .compact-card button,  .overview-card button,  .setup-empty button,  #gameToolbar button,  .catalog-pages button,  #addCustomGame { background: rgb(53, 67, 47); border: 1px solid rgb(94, 118, 83); color: rgb(237, 243, 232); border-radius: 7px; padding: 8px 12px; cursor: pointer; }
 .manager-dialog button { margin: 8px 8px 8px 0px; }
 button.danger { background: var(--danger-bg); border: 1px solid var(--danger-border); color: var(--danger-text); border-radius: 7px; padding: 8px 12px; }
 button:disabled { opacity: 0.45; cursor: default !important; }
@@ -44,7 +44,6 @@ button:disabled { opacity: 0.45; cursor: default !important; }
 .form-grid legend { color: rgb(201, 222, 183); }
 .compact-card small { color: rgb(171, 182, 166); }
 .manager-dialog p { line-height: 1.8; }
-.overview-card { align-self: start; }
 .game-switcher { overflow-x: hidden; }
 .game-tab { min-width: 0px; width: 100%; }
 .game-tab > span:nth-child(2) { min-width: 0px; white-space: normal; overflow-wrap: anywhere; text-align: left; }
@@ -94,7 +93,7 @@ button:disabled { opacity: 0.45; cursor: default !important; }
 .rule-nav [aria-pressed="true"] { border-color: var(--lime); }
 .rule-editor fieldset { min-width: 0px; margin: 12px 0px; }
 .rule-editor input,  .rule-editor select { min-width: 0px; max-width: 100%; }
-.overview-heading #addCustomGame { background: rgb(52, 67, 45); border: 1px solid rgb(107, 133, 88); border-radius: 7px; color: rgb(230, 243, 201); padding: 8px 12px; cursor: pointer; white-space: nowrap; }
+#addCustomGame { white-space: nowrap; }
 .catalog-grid { display: grid; grid-template-columns: repeat(3, minmax(0px, 1fr)); gap: 16px; align-items: start; }
 .catalog-card { min-width: 0px; }
 .catalog-card h3 { margin: 0px 0px 8px; }
@@ -125,4 +124,3 @@ button:disabled { opacity: 0.45; cursor: default !important; }
 .catalog-mission { box-sizing: border-box; }
 .catalog-mission > div { flex: 1 1 100%; }
 .catalog-mission .catalog-actions { display: flex; flex-wrap: wrap; }
-.catalog-pages button { background: rgb(53, 67, 47); color: rgb(237, 243, 232); border: 1px solid rgb(94, 118, 83); border-radius: 6px; padding: 8px 14px; }
