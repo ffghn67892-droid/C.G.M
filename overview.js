@@ -39,19 +39,32 @@ function spendingText(p) {
   );
 }
 function renderOverview() {
+  const searchTerm = ($('#gameSearch')?.value || '').trim();
   $('#questList').innerHTML =
-    `<div class="overview-heading"><h2>메인</h2><label><input type="checkbox" id="trayOption" ${state.tray ? 'checked' : ''} />닫을 때 트레이에 유지</label></div><div class="overview-grid">${GAMES.map(
+    `<div class="overview-heading"><h2>메인</h2><input type="search" id="gameSearch" placeholder="게임 검색" aria-label="게임 검색" value="${escapeHtml(searchTerm)}" /><label><input type="checkbox" id="trayOption" ${state.tray ? 'checked' : ''} />닫을 때 트레이에 유지</label></div><div class="overview-grid">${GAMES.map(
       ([id, name]) => {
         const p = state.games[id].profile,
           s = gameStatus(id);
         if (!p.registeredAt)
-          return `<article class="overview-card"><h3>${escapeHtml(name)}</h3><p>설정 필요</p><button data-register="${id}">최초 설정</button></article>`;
+          return `<article class="overview-card" data-game-name="${escapeHtml(name.toLowerCase())}"><h3>${escapeHtml(name)}</h3><p>설정 필요</p><button data-register="${id}">최초 설정</button></article>`;
         const days = periodAt(0) - periodAt(0, 0, new Date(p.registeredAt));
-        return `<article class="overview-card"><h3><span class="status-dot ${s.color}">${s.label}</span>${escapeHtml(name)}</h3><p class="overview-totals">${escapeHtml(rewardText(totals(id)))}</p><dl><dt>현금 지출</dt><dd>${spendingText(p)}</dd><dt>이용 일수</dt><dd>경과 ${days}일 · 활동 ${p.activityDays.length}일</dd><dt>패스</dt><dd>${p.pass.active ? '활성' : '미활성'} · Lv. ${p.pass.level}</dd><dt>종료</dt><dd>${p.pass.end ? escapeHtml(new Date(p.pass.end).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })) : '미지정'}</dd>${id === 'master-duel' && !state.games[id].masterDuel?.eventDeleted && Date.now() < Date.parse(DICE_END) ? '<dt>이벤트 종료</dt><dd>9월 21일 12:59 KST</dd>' : ''}</dl><div class="card-actions"><button data-open-game="${id}">게임 열기</button><button data-settings="${id}">상세 설정</button><button data-mute="${id}">${p.mutedUntil > Date.now() ? '오늘 알람 꺼짐' : '오늘의 알람 끄기'}</button></div></article>`;
+        return `<article class="overview-card" data-game-name="${escapeHtml(name.toLowerCase())}"><h3><span class="status-dot ${s.color}">${s.label}</span>${escapeHtml(name)}</h3><p class="overview-totals">${escapeHtml(rewardText(totals(id)))}</p><dl><dt>현금 지출</dt><dd>${spendingText(p)}</dd><dt>이용 일수</dt><dd>경과 ${days}일 · 활동 ${p.activityDays.length}일</dd><dt>패스</dt><dd>${p.pass.active ? '활성' : '미활성'} · Lv. ${p.pass.level}</dd><dt>종료</dt><dd>${p.pass.end ? escapeHtml(new Date(p.pass.end).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })) : '미지정'}</dd>${id === 'master-duel' && !state.games[id].masterDuel?.eventDeleted && Date.now() < Date.parse(DICE_END) ? '<dt>이벤트 종료</dt><dd>9월 21일 12:59 KST</dd>' : ''}</dl><div class="card-actions"><button data-open-game="${id}">게임 열기</button><button data-settings="${id}">상세 설정</button><button data-mute="${id}">${p.mutedUntil > Date.now() ? '오늘 알람 꺼짐' : '오늘의 알람 끄기'}</button></div></article>`;
       }
     ).join(
       ''
-    )}</div><p class="muted">트레이 유지 중에만 창을 닫아도 알림이 실행됩니다. 완전 종료하거나 PC를 끄면 알림이 멈춥니다.</p>`;
+    )}</div><p class="muted" id="gameSearchEmpty" hidden>일치하는 게임이 없습니다.</p><p class="muted">트레이 유지 중에만 창을 닫아도 알림이 실행됩니다. 완전 종료하거나 PC를 끄면 알림이 멈춥니다.</p>`;
+  const applyGameSearch = () => {
+    const term = $('#gameSearch').value.trim().toLowerCase();
+    let visible = 0;
+    $$('.overview-card').forEach(card => {
+      const match = !term || card.dataset.gameName.includes(term);
+      card.hidden = !match;
+      if (match) visible++;
+    });
+    $('#gameSearchEmpty').hidden = visible > 0;
+  };
+  $('#gameSearch').addEventListener('input', applyGameSearch);
+  if (searchTerm) applyGameSearch();
   $$('[data-register]').forEach(b =>
     b.addEventListener('click', () =>
       isCustomGame(b.dataset.register)
