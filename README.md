@@ -12,12 +12,14 @@
 npm.cmd start
 # 브라우저 확인
 npm.cmd run dev:web
-# 핵심 검사 23개
+# 핵심 검사 39개
 npm.cmd test
+# 코드 스타일 정리 (Prettier)
+npm.cmd run format
 ```
 
 최초 설정과 규칙 편집기에서 일정·생성 수·보상·연동·초기 진행도를 관리합니다. 갱신 시각은 KST 기준이고 저장은 localStorage를 사용합니다.
 
 현행 구조는 [ARCHITECTURE.md](ARCHITECTURE.md), 작업 지침은 [HANDOFF.md](HANDOFF.md), 완료 결과는 [REFACTOR_STAGE_G.md](REFACTOR_STAGE_G.md)를 참고하십시오.
 
-설치·배포 작업은 보류 중입니다. 배포 파일 목록이 현재 소스와 동기화되지 않았으므로 소스 실행 확인을 설치본 검증으로 간주하지 않습니다.
+설치·배포 작업은 보류 중입니다. 배포 파일 목록은 현재 소스와 동기화했지만, 소스 실행 확인을 설치본 검증으로 간주하지 않습니다.

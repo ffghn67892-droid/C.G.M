@@ -2,7 +2,7 @@
 
 > 후속 회귀 수정 완료(2026-09-19): dateKey 이관·초기 구매 지출·편집 일정 표시·단계 캐시·경계 중복 계산을 수정했다. 결과/복구: [REGRESSION_FIXES.md](docs/history/REGRESSION_FIXES.md), 당시 제외 검사 74개 대응: [REGRESSION_TEST_COVERAGE.md](REGRESSION_TEST_COVERAGE.md).
 
-> AI 작업 친화적 구조 개편 완료(2026-09-19, Stage H1~H4 진행 중): git 저장소 도입, 문서 아카이브·배너 단일화, package.json 배포 목록 동기화, 테스트 스위트 정리(제외 파일 10개 삭제·통과 검사 10개 이관, 폐기 사유는 REGRESSION_TEST_COVERAGE.md). 현재 `npm.cmd test`는 39개(핵심 29 + 이관 10) 전부 통과.
+> AI 작업 친화적 구조 개편 완료(2026-09-19, Stage H1~H5): git 저장소 도입, package.json 배포 목록 동기화, 문서 아카이브·배너 단일화, 테스트 스위트 정리(제외 파일 10개 삭제·통과 검사 10개 이관), 전체 소스 19개 파일 Prettier 재포맷. 상세는 아래 "AI 작업 친화적 구조 개편 완료 상태" 절을 따른다.
 
 현재 상태: **2026-09-19 A~E8·F·G 리팩터링 완료**. 사용자는 G 작업까지 승인했다. 이전 문서의 승인 대기는 당시 기록이며 현재 상태가 아니다.
 
@@ -26,7 +26,17 @@
 2. 기본 `npm.cmd test`는 39개(핵심 29 + Stage H4 이관 10)다. `tests/` 안의 모든 파일이 실행 대상이며 별도로 제외된 파일은 없다. 비치명적·중복 검사를 생략하는 원칙은 유지한다. 공통 보상·저장·갱신 변경에는 현재 핵심 검사를 실행하며, 보상 금액·상태·중복 지급·실패 복구를 우선한다.
 3. 화면 변경은 영향받는 화면과 필요한 창 크기만 확인한다. 검사 통과 후 새 변경·실패·미해결 우려 없이 반복하거나 확대하지 않는다.
 4. 사용자가 다시 요청할 때까지 설치 관련 파일·배포 빌드·설치본 검증은 제외한다. package.json 배포 파일 목록은 소스 구성과 동기화했다(2026-09-19, AI 작업 친화적 구조 개편 H2). 다만 `npm run dist` 실행이나 설치본 자체는 아직 검증하지 않았다.
-5. 완료된 A~G를 재시작하지 않는다. 새로운 단계 작업을 별도로 제안하면 기존 사용자 원칙대로 범위·검증·복구 지점을 제시하고 승인받는다.
+5. 완료된 A~G, H1~H5를 재시작하지 않는다. 새로운 단계 작업을 별도로 제안하면 기존 사용자 원칙대로 범위·검증·복구 지점을 제시하고 승인받는다.
+6. 이후 단계부터는 `.refactor-checkpoints/` 수동 스냅샷 대신 git 커밋으로 체크포인트를 대체한다. 기존 체크포인트 폴더는 삭제하지 않고 `.gitignore`로만 제외한다.
+
+## AI 작업 친화적 구조 개편 완료 상태 (Stage H1~H5, 2026-09-19)
+
+- **H1 (git 도입)**: `.git` 저장소 초기화, `.refactor-audit/`·`.refactor-checkpoints/`·`qa/`를 `.gitignore`에 추가한 뒤 베이스라인 커밋. origin은 사용자의 GitHub 저장소(`ffghn67892-droid/C.G.M`)로 연결했으나 아직 push하지 않았다.
+- **H2 (메타데이터 정합성)**: `package.json`의 `build.files`에서 이미 삭제된 `park-quests.js`·`game-extras.js`·`mission-updates.js`를 제거하고, 누락되어 있던 `game-data.js`·`catalog-engine.js`·`catalog-presets.js`·`catalog-view.js`·`catalog-editor.js`·`refresh-scheduler.js`·`legacy-migrations.js`를 추가해 `index.html` 로드 순서와 일치시켰다.
+- **H3 (문서 정리)**: 완료된 이력 문서 11개를 `docs/history/`로 이동하고 색인(`docs/history/README.md`)을 추가했다. README·AGENTS·ARCHITECTURE·HANDOFF 4곳에 복붙되어 있던 동일 상태 배너를 이 문서 한 곳으로 단일화했다. 60개 상호 링크를 모두 검증했다.
+- **H4 (테스트 정리)**: `tests/` 12개 파일 중 `npm.cmd test`에서 제외됐던 10개(74개 선언)를 실제로 실행해 확인한 뒤 삭제했다. 그중 지금도 그대로 통과하던 10개 선언은 `tests/catalog-additional.test.cjs`로 옮겼다. 나머지는 2단계 설정 미리보기·게임별 전용 DOM·제거된 `passAwards()` 등 이미 존재하지 않는 대상을 참조하고 있었고, 그 요구사항(보상 금액·멱등성·중복 지급 방지)은 현재 E1~E8/F/회귀 스위트가 현재 API로 이미 검증하고 있어 재작성하지 않았다. 결정 경위는 REGRESSION_TEST_COVERAGE.md에 기록했다. `npm.cmd test`는 이제 39개 전부 통과하며 `tests/` 안에 "제외 파일" 개념이 없다.
+- **H5 (Prettier 재포맷)**: 루트 `*.js` 19개 파일(핵심 로직 파일은 줄당 최대 1,482자, 평균 200~320바이트/줄이었다) 전체를 Prettier로 재포맷했다. 그룹(데이터→엔진→UI 연결→Electron 메인)마다 `node --check`와 `npm.cmd test` 39개 통과를 확인하고 별도 커밋했다. 로직·변수명·파일 분할은 건드리지 않았다. 마지막에 `npm.cmd run dev:web`으로 브라우저에서 메인 화면과 KARDS 최초 설정→규칙 편집기→생성 흐름을 육안 확인했고 콘솔 오류가 없었다.
+- 개편 전 커밋(`Baseline snapshot before AI-friendly reorg`)이 남아 있어 필요시 파일 단위로 이전 상태와 diff·복원이 가능하다.
 
 ## G 완료 상태
 
