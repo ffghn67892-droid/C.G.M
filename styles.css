@@ -77,3 +77,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .difficulty-modal[hidden] { display: none; }
 .wizard-help { color: var(--muted); font-size: 12px; line-height: 1.6; margin: 6px 0px 14px; }
 .overview-empty { padding: 40px 0px; text-align: center; }
+.wizard-progress { color: var(--lime); font: 500 11px "DM Mono", monospace; letter-spacing: 0.05em; margin: 14px 0px 2px; }
+.wizard-nav { display: flex; gap: 8px; margin-top: 16px; }
+.rule-type-grid { display: grid; grid-template-columns: repeat(2, minmax(0px, 1fr)); gap: 10px; margin-top: 10px; }
+.rule-type-choice { padding: 12px; border: 1px solid var(--line); border-radius: 8px; }
+.rule-type-choice .wizard-help { margin: 8px 0px 0px; }

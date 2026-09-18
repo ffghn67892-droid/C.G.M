@@ -174,9 +174,45 @@ function openUniversalSettings(id) {
     });
   });
 }
+const RULE_TYPE_HELP = {
+  quest:
+    '갱신될 때마다 여러 개의 할 일이 새로 생기고, 각각 완료하면 보상을 받습니다. 예: 하루 3개씩 나오는 일일 임무.',
+  claim:
+    '할 일 없이 정해진 주기마다 버튼 하나로 보상을 받습니다. 예: 매일 접속 시 받는 출석 보상.',
+  goal: '정해진 값까지 진행도를 쌓으면 목표 지점마다 보상을 받습니다. 예: 승리 15회 달성 시 보상.',
+  resource: '시간이 지나면 자동으로 채워지는 자원입니다. 예: 30분마다 1개씩 회복되는 티켓.',
+  pass: '레벨처럼 진행도가 쌓일 때마다 여러 단계의 보상을 순서대로 받습니다. 예: 시즌 패스 레벨업 보상.',
+  counter: '완료할 때마다 횟수만 누적해서 기록합니다. 보상 없이 진행 상황만 추적할 때 씁니다.'
+};
+const RULE_STEP_META = {
+  basic: { title: '기본 정보', help: '이 항목의 이름과 사용 여부를 정합니다.' },
+  schedule: { title: '갱신 주기', help: '언제, 얼마나 자주 초기화되고 새로 생성되는지 정합니다.' },
+  limits: { title: '생성·상한', help: '한 번에 몇 개까지 생성되고 유지되는지 정합니다.' },
+  rewards: { title: '보상', help: '완료·수령 시 어떤 재화를 얼마나 받을지 정합니다.' },
+  steps: { title: '구간 보상', help: '진행도가 특정 값에 도달할 때마다 받을 보상을 정합니다.' },
+  quests: {
+    title: '퀘스트 목록',
+    help: '실제로 화면에 나열될 개별 할 일과, 각각 어떤 보상을 받을지 정합니다.'
+  },
+  advanced: {
+    title: '고급 설정',
+    help: '화면 표시, 다른 항목과의 연동, 선행 조건 등 필요할 때만 쓰는 설정입니다. 건너뛰어도 됩니다.'
+  },
+  review: { title: '확인', help: '지금까지 입력한 내용을 확인하고 저장합니다.' }
+};
+const RULE_SCHEDULE_HELP = {
+  daily: '매일 같은 시각에 갱신됩니다.',
+  weekly: '매주 지정한 요일의 지정한 시각에 갱신됩니다.',
+  intervalDays: '기준 날짜로부터 며칠 간격으로 갱신됩니다.',
+  slots: '하루에 지정한 여러 시각마다 갱신됩니다.',
+  monthly: '매월 1일 지정한 시각에 갱신됩니다.',
+  once: '별도 갱신 없이 정해진 기간 동안 유지됩니다.'
+};
 function mountUniversalEditor(initial, parent, initialSetup = false) {
   const draft = structuredClone(initial);
   let selected = 0;
+  // Reopening rules that already exist starts at the review step; a brand new rule starts at step 0.
+  let step = initial.length ? Infinity : 0;
   const host = document.createElement('section');
   host.className = 'rule-editor';
   parent.appendChild(host);
@@ -315,15 +351,22 @@ function mountUniversalEditor(initial, parent, initialSetup = false) {
   }
   function render() {
     const r = draft[selected],
-      add = Object.entries(CATALOG_TYPES)
+      addCompact = Object.entries(CATALOG_TYPES)
         .map(([k, v]) => `<button data-add-rule="${k}" data-new-empty="${k}">${v} 추가</button>`)
+        .join(''),
+      addWithHelp = Object.entries(CATALOG_TYPES)
+        .map(
+          ([k, v]) =>
+            `<div class="rule-type-choice"><button data-add-rule="${k}" data-new-empty="${k}">${v} 추가</button><p class="wizard-help">${escapeHtml(RULE_TYPE_HELP[k])}</p></div>`
+        )
         .join('');
     if (!r) {
-      host.innerHTML = `<h3>규칙 구성</h3><div class="rule-nav">${add}</div><p data-rule-error="true"></p>`;
+      host.innerHTML = `<h3>규칙 구성</h3><p class="wizard-help">추가할 요소의 종류를 고르세요. 각 유형이 무엇을 위한 것인지는 아래 설명을 참고하세요.</p><div class="rule-type-grid">${addWithHelp}</div><p data-rule-error="true"></p>`;
       host.querySelectorAll('[data-add-rule]').forEach(b =>
         b.addEventListener('click', () => {
           draft.push(newUniversalRule(b.dataset.addRule));
-          selected = 0;
+          selected = draft.length - 1;
+          step = 0;
           render();
         })
       );
@@ -334,84 +377,125 @@ function mountUniversalEditor(initial, parent, initialSetup = false) {
     r.quests ||= [];
     const others = draft.filter(x => x !== r).map(x => [x.id, x.label]),
       date = v => (v ? new Date(Date.parse(v) + 9 * HOUR_MS).toISOString().slice(0, 16) : '');
-    host.innerHTML = `<h3>규칙 구성 · ${CATALOG_TYPES[r.type]}</h3><div class="rule-nav">${draft.map((x, i) => `<button data-edit-rule="${i}" aria-pressed="${selected === i}">${escapeHtml(x.label)}</button>`).join('')}</div><div class="rule-nav">${add}<button id="copyRule">규칙 복제</button><button id="moveRuleUp">앞으로 이동</button><button id="moveRuleDown">뒤로 이동</button><button id="removeRule" class="danger">이 규칙 삭제</button></div>
-   <div class="form-grid">${input('label', '이름', r.label)}${input('page', '페이지 그룹 (비워두면 항상 표시)', r.page)}${select(
-     'span',
-     '카드 너비',
-     r.span || 1,
-     [
-       [1, '1칸'],
-       [2, '2칸'],
-       [3, '3칸']
-     ]
-   )}${select('columns', '퀘스트 목록 열 수', r.columns || 1, [
-     [1, '1열'],
-     [2, '2열'],
-     [3, '3열']
-   ])}${input('note', '메모', r.note)}${check('enabled', '활성', r.enabled !== false)}${select(
-     'attention',
-     '알림 중요도',
-     r.attention || 'normal',
-     [
-       ['normal', '일반'],
-       ['urgent', '오늘 확인'],
-       ['warning', '진행 권장'],
-       ['none', '별도 알림 없음']
-     ]
-   )}${select('kind', '갱신 주기', r.schedule.kind, [
+    const stepKeys = ['basic', 'schedule', 'limits'];
+    if (['quest', 'claim'].includes(r.type)) stepKeys.push('rewards');
+    if (['goal', 'pass', 'counter'].includes(r.type)) stepKeys.push('steps');
+    if (r.type === 'quest') stepKeys.push('quests');
+    stepKeys.push('advanced', 'review');
+    step = Math.min(step, stepKeys.length - 1);
+    const on = key => (stepKeys[step] === key ? '' : 'hidden');
+    host.innerHTML = `<h3>규칙 구성 · ${CATALOG_TYPES[r.type]}</h3><div class="rule-nav">${draft.map((x, i) => `<button data-edit-rule="${i}" aria-pressed="${selected === i}">${escapeHtml(x.label)}</button>`).join('')}</div><div class="rule-nav">${addCompact}<button id="copyRule">규칙 복제</button><button id="moveRuleUp">앞으로 이동</button><button id="moveRuleDown">뒤로 이동</button><button id="removeRule" class="danger">이 규칙 삭제</button></div>
+   <p class="wizard-progress">${step + 1} / ${stepKeys.length} · ${RULE_STEP_META[stepKeys[step]].title}</p>
+   <p class="wizard-help">${escapeHtml(RULE_STEP_META[stepKeys[step]].help)}</p>
+   <section ${on('basic')}><div class="form-grid">${input('label', '이름', r.label)}${check('enabled', '활성', r.enabled !== false)}</div></section>
+   <section ${on('schedule')}><div class="form-grid">${select('kind', '갱신 주기', r.schedule.kind, [
      ['daily', '매일'],
      ['weekly', '매주'],
      ['intervalDays', 'N일마다'],
      ['slots', '하루 여러 시각'],
      ['monthly', '매월'],
      ['once', '기간 내 유지']
-   ])}${input('time', '갱신 시각', r.schedule.time, 'time')}${select(
-     'weekday',
-     '요일',
-     r.schedule.weekday || 0,
-     ['일', '월', '화', '수', '목', '금', '토'].map((x, i) => [i, x])
-   )}${input('days', 'N일 간격', r.schedule.days || 1, 'number')}${input('anchor', '기준 날짜', r.schedule.anchor || '2026-01-01', 'date')}${input('times', '여러 시각 (쉼표 구분)', (r.schedule.times || ['04:00', '12:00', '20:00']).join(', '))}${input('start', '시작 KST', date(r.start), 'datetime-local')}${input('end', '종료 KST', date(r.end), 'datetime-local')}${input('spawnCount', '갱신 시 생성 / 수령 수', r.spawnCount, 'number')}${input('capacity', '보관 상한', r.capacity, 'number')}${input('passExtra', '추가 공급 활성 시 추가 수', r.passExtra, 'number')}${check('paidOnly', '유료 활성 시 사용', r.paidOnly)}</div>
-   ${r.type === 'quest' ? `<div class="form-grid">${check('unique', '같은 종류 중복 금지', r.unique)}${check('chooseType', '퀘스트 종류 선택 허용', r.chooseType)}${check('replace', '갱신 시 전체 교체', r.replace)}${check('removeCompleted', '완료 즉시 제거', r.removeCompleted)}${input('completionLimit', '필요 완료 수 (0이면 전체)', r.completionLimit || 0, 'number')}</div>` : `<div hidden>${check('unique', '', false)}${check('chooseType', '', false)}${check('replace', '', false)}${check('removeCompleted', '', false)}${input('completionLimit', '', 0, 'number')}</div>`}
-   <div class="form-grid">${check('hideCompleted', '수령 완료 시 숨김', r.hideCompleted)}${check('hideAction', '직접 진행 버튼 숨김', r.hideAction)}${input('monthlyLimit', '월간 수령 상한 (0이면 없음)', r.monthlyLimit || 0, 'number')}${input('event', '공동 진행 이름 (같은 이름끼리 함께 증가)', r.event)}${input('eventLabel', '진행 버튼 이름', r.eventLabel)}${select('stopAt', '대상 달성 시 이 항목 종료', r.stopAt || '', [['', '없음'], ...others])}</div>
-   <details><summary>구매 기록 설정</summary><div class="form-grid">${input('expenseCurrency', '소비 재화 ID', r.expense?.currency || 'gems')}${input('expenseAmount', '소비 수량 (0이면 구매 기록 안 함)', r.expense?.amount || 0, 'number')}</div></details><details><summary>선행 완료 조건</summary>${others.map(([id, label]) => `<label class="check-field"><input data-requires="true" type="checkbox" value="${id}" ${(r.requires || []).includes(id) ? 'checked' : ''} />${escapeHtml(label)}</label>`).join('')}</details>
-   ${r.type === 'resource' ? `<div class="form-grid">${input('intervalMinutes', '회복 간격 (분)', r.intervalMinutes, 'number')}${input('recoverAmount', '회복 수량', r.recoverAmount, 'number')}${input('consumeLabel', '사용 버튼 이름', r.consumeLabel || '1개 사용')}${input('consumeRewards', '사용 시 기록할 재화:수량', bundle(r.consumeRewards))}</div>` : ''}
-   ${['goal', 'pass', 'counter'].includes(r.type) ? `<h4>목표와 구간 보상</h4>${input('target', '목표 상한', r.target, 'number')}${r.steps.map((s, i) => `<div class="form-grid">${input('stepAt' + i, '도달값', s.at, 'number')}${input('stepFree' + i, '무료 재화:수량', bundle(s.free))}${input('stepPaid' + i, '유료 재화:수량', bundle(s.paid))}<button data-remove-step="${i}">구간 삭제</button></div>`).join('')}<button id="addStep">구간 추가</button><details><summary>반복 구간</summary><div class="form-grid">${input('repeatFrom', '반복 시작 (0이면 없음)', r.repeat?.from || 0, 'number')}${input('repeatEvery', '반복 간격', r.repeat?.every || 1, 'number')}${input('repeatFree', '무료 보상', bundle(r.repeat?.free))}${input('repeatPaid', '유료 보상', bundle(r.repeat?.paid))}</div></details>` : ''}
-   <h4>보상 종류</h4>${r.rewards.map((x, i) => `<div class="form-grid">${input('rewardLabel' + i, '보상 이름', x.label)}${input('resources' + i, '재화:수량 (쉼표 구분)', bundle(x.resources))}${initialSetup ? input('received' + i, '기수령 횟수', r.initialReceived?.[x.id] || 0, 'number') : ''}<button data-remove-reward="${i}">보상 삭제</button></div>`).join('')}${['quest', 'claim'].includes(r.type) ? '<button id="addRuleReward">보상 추가</button>' : ''}
-   ${r.quests.map((q, i) => `<fieldset>${input('questLabel' + i, '퀘스트 내용', q.label)}${input('questPoints' + i, '연동할 포인트', q.points || 0, 'number')}${r.rewards.map(x => `<label class="check-field"><input type="checkbox" data-quest-reward="${i}" value="${x.id}" ${q.rewardIds.includes(x.id) ? 'checked' : ''} />${escapeHtml(x.label)}</label>`).join('')}<button data-remove-quest="${i}">종류 삭제</button></fieldset>`).join('')}${r.type === 'quest' ? '<button id="addRuleQuest">퀘스트 종류 추가</button>' : ''}
-   <details><summary>다른 항목과 연동</summary>${r.links
-     .map(
-       (l, i) =>
-         `<div class="form-grid">${select('linkTarget' + i, '대상', l.target, others)}${select(
-           'linkEvent' + i,
-           '발생 동작',
-           l.event,
-           [
-             ['complete', '완료 / 수령'],
-             ['progress', '진행'],
-             ['consume', '자원 사용']
-           ]
-         )}${select('linkValue' + i, '증가량', l.value, [
-           ['one', '1'],
-           ['points', '퀘스트 포인트'],
-           ['amount', '진행 증가량'],
-           ['date', '서로 다른 활동 날짜']
-         ])}<button data-remove-link="${i}">연동 삭제</button></div>`
-     )
-     .join('')}<button id="addLink">연동 추가</button></details>
-   ${initialSetup ? `<h4>최초 진행도</h4><div class="form-grid">${input('initialValue', '기존 목표 진행도 / 남은 자원 (기수령 연동분 제외)', r.initialValue ?? (r.type === 'resource' ? r.capacity : 0), 'number')}${input('initialCount', '남은 퀘스트 수', r.initialCount ?? r.spawnCount, 'number')}</div>` : ''}<p data-rule-error="true" role="status"></p>`;
+   ])}${input('time', '갱신 시각', r.schedule.time, 'time')}</div><p class="wizard-help">${escapeHtml(RULE_SCHEDULE_HELP[r.schedule.kind] || '')}</p><div class="form-grid">${
+     r.schedule.kind === 'weekly'
+       ? select(
+           'weekday',
+           '요일',
+           r.schedule.weekday || 0,
+           ['일', '월', '화', '수', '목', '금', '토'].map((x, i) => [i, x])
+         )
+       : ''
+   }${
+     r.schedule.kind === 'intervalDays'
+       ? input('days', 'N일 간격', r.schedule.days || 1, 'number') +
+         input('anchor', '기준 날짜', r.schedule.anchor || '2026-01-01', 'date')
+       : ''
+   }${
+     r.schedule.kind === 'slots'
+       ? input(
+           'times',
+           '여러 시각 (쉼표 구분)',
+           (r.schedule.times || ['04:00', '12:00', '20:00']).join(', ')
+         )
+       : ''
+   }</div>${
+     r.schedule.kind !== 'weekly'
+       ? `<div hidden>${select('weekday', '', r.schedule.weekday || 0, ['일', '월', '화', '수', '목', '금', '토'].map((x, i) => [i, x]))}</div>`
+       : ''
+   }${
+     r.schedule.kind !== 'intervalDays'
+       ? `<div hidden>${input('days', '', r.schedule.days || 1, 'number')}${input('anchor', '', r.schedule.anchor || '2026-01-01', 'date')}</div>`
+       : ''
+   }${r.schedule.kind !== 'slots' ? `<div hidden>${input('times', '', (r.schedule.times || ['04:00', '12:00', '20:00']).join(', '))}</div>` : ''}</section>
+   <section ${on('limits')}>${
+     r.type === 'resource'
+       ? `<div class="form-grid">${input('capacity', '최대 보유량', r.capacity, 'number')}${input('intervalMinutes', '회복 간격 (분)', r.intervalMinutes, 'number')}${input('recoverAmount', '회복 수량', r.recoverAmount, 'number')}${input('consumeLabel', '사용 버튼 이름', r.consumeLabel || '1개 사용')}${input('consumeRewards', '사용 시 기록할 재화:수량', bundle(r.consumeRewards))}</div><div hidden>${input('spawnCount', '', r.spawnCount, 'number')}${input('passExtra', '', r.passExtra, 'number')}${check('paidOnly', '', r.paidOnly)}</div>`
+       : ['goal', 'pass', 'counter'].includes(r.type)
+         ? `<div class="form-grid">${input('target', '목표 상한', r.target, 'number')}</div><div hidden>${input('spawnCount', '', r.spawnCount, 'number')}${input('capacity', '', r.capacity, 'number')}${input('passExtra', '', r.passExtra, 'number')}${check('paidOnly', '', r.paidOnly)}</div>`
+         : `<div class="form-grid">${input('spawnCount', '갱신 시 생성 / 수령 수', r.spawnCount, 'number')}${input('capacity', '보관 상한', r.capacity, 'number')}${input('passExtra', '추가 공급 활성 시 추가 수', r.passExtra, 'number')}${check('paidOnly', '유료 활성 시 사용', r.paidOnly)}</div>${
+             r.type === 'quest'
+               ? `<div class="form-grid">${check('unique', '같은 종류 중복 금지', r.unique)}${check('chooseType', '퀘스트 종류 선택 허용', r.chooseType)}${check('replace', '갱신 시 전체 교체', r.replace)}${check('removeCompleted', '완료 즉시 제거', r.removeCompleted)}${input('completionLimit', '필요 완료 수 (0이면 전체)', r.completionLimit || 0, 'number')}</div>`
+               : `<div hidden>${check('unique', '', false)}${check('chooseType', '', false)}${check('replace', '', false)}${check('removeCompleted', '', false)}${input('completionLimit', '', 0, 'number')}</div>`
+           }${
+             r.type === 'claim'
+               ? `<div class="form-grid">${input('monthlyLimit', '월간 수령 상한 (0이면 없음)', r.monthlyLimit || 0, 'number')}</div>`
+               : `<div hidden>${input('monthlyLimit', '', r.monthlyLimit || 0, 'number')}</div>`
+           }`
+   }</section>
+   <section ${on('rewards')}>${r.rewards.map((x, i) => `<div class="form-grid">${input('rewardLabel' + i, '보상 이름', x.label)}${input('resources' + i, '재화:수량 (쉼표 구분)', bundle(x.resources))}${initialSetup ? input('received' + i, '기수령 횟수', r.initialReceived?.[x.id] || 0, 'number') : ''}<button data-remove-reward="${i}">보상 삭제</button></div>`).join('')}<button id="addRuleReward">보상 추가</button></section>
+   <section ${on('steps')}>${r.steps.map((s, i) => `<div class="form-grid">${input('stepAt' + i, '도달값', s.at, 'number')}${input('stepFree' + i, '무료 재화:수량', bundle(s.free))}${input('stepPaid' + i, '유료 재화:수량', bundle(s.paid))}<button data-remove-step="${i}">구간 삭제</button></div>`).join('')}<button id="addStep">구간 추가</button><details><summary>반복 구간</summary><div class="form-grid">${input('repeatFrom', '반복 시작 (0이면 없음)', r.repeat?.from || 0, 'number')}${input('repeatEvery', '반복 간격', r.repeat?.every || 1, 'number')}${input('repeatFree', '무료 보상', bundle(r.repeat?.free))}${input('repeatPaid', '유료 보상', bundle(r.repeat?.paid))}</div></details></section>
+   <section ${on('quests')}>${r.quests.map((q, i) => `<fieldset>${input('questLabel' + i, '퀘스트 내용', q.label)}${input('questPoints' + i, '연동할 포인트', q.points || 0, 'number')}${r.rewards.map(x => `<label class="check-field"><input type="checkbox" data-quest-reward="${i}" value="${x.id}" ${q.rewardIds.includes(x.id) ? 'checked' : ''} />${escapeHtml(x.label)}</label>`).join('')}<button data-remove-quest="${i}">종류 삭제</button></fieldset>`).join('')}<button id="addRuleQuest">퀘스트 종류 추가</button></section>
+   <section ${on('advanced')}>
+     <div class="form-grid">${input('page', '페이지 그룹 (비워두면 항상 표시)', r.page)}${select('span', '카드 너비', r.span || 1, [[1, '1칸'], [2, '2칸'], [3, '3칸']])}${select('columns', '퀘스트 목록 열 수', r.columns || 1, [[1, '1열'], [2, '2열'], [3, '3열']])}${input('note', '메모', r.note)}${select('attention', '알림 중요도', r.attention || 'normal', [['normal', '일반'], ['urgent', '오늘 확인'], ['warning', '진행 권장'], ['none', '별도 알림 없음']])}</div>
+     <div class="form-grid">${input('start', '시작 KST', date(r.start), 'datetime-local')}${input('end', '종료 KST', date(r.end), 'datetime-local')}</div>
+     <div class="form-grid">${check('hideCompleted', '수령 완료 시 숨김', r.hideCompleted)}${check('hideAction', '직접 진행 버튼 숨김', r.hideAction)}${input('event', '공동 진행 이름 (같은 이름끼리 함께 증가)', r.event)}${input('eventLabel', '진행 버튼 이름', r.eventLabel)}${select('stopAt', '대상 달성 시 이 항목 종료', r.stopAt || '', [['', '없음'], ...others])}</div>
+     <details><summary>구매 기록 설정</summary><div class="form-grid">${input('expenseCurrency', '소비 재화 ID', r.expense?.currency || 'gems')}${input('expenseAmount', '소비 수량 (0이면 구매 기록 안 함)', r.expense?.amount || 0, 'number')}</div></details>
+     <details><summary>선행 완료 조건</summary>${others.map(([id, label]) => `<label class="check-field"><input data-requires="true" type="checkbox" value="${id}" ${(r.requires || []).includes(id) ? 'checked' : ''} />${escapeHtml(label)}</label>`).join('')}</details>
+     <details><summary>다른 항목과 연동</summary>${r.links
+       .map(
+         (l, i) =>
+           `<div class="form-grid">${select('linkTarget' + i, '대상', l.target, others)}${select(
+             'linkEvent' + i,
+             '발생 동작',
+             l.event,
+             [
+               ['complete', '완료 / 수령'],
+               ['progress', '진행'],
+               ['consume', '자원 사용']
+             ]
+           )}${select('linkValue' + i, '증가량', l.value, [
+             ['one', '1'],
+             ['points', '퀘스트 포인트'],
+             ['amount', '진행 증가량'],
+             ['date', '서로 다른 활동 날짜']
+           ])}<button data-remove-link="${i}">연동 삭제</button></div>`
+       )
+       .join('')}<button id="addLink">연동 추가</button></details>
+     ${initialSetup ? `<h4>최초 진행도</h4><div class="form-grid">${input('initialValue', '기존 목표 진행도 / 남은 자원 (기수령 연동분 제외)', r.initialValue ?? (r.type === 'resource' ? r.capacity : 0), 'number')}${input('initialCount', '남은 퀘스트 수', r.initialCount ?? r.spawnCount, 'number')}</div>` : ''}
+   </section>
+   <section ${on('review')}><p>이름: ${escapeHtml(r.label)} · 유형: ${escapeHtml(CATALOG_TYPES[r.type])} · 갱신: ${escapeHtml(RULE_SCHEDULE_HELP[r.schedule.kind] || '')}</p><p class="wizard-help">이전 단계로 돌아가 값을 바꿀 수 있습니다. 문제가 없다면 저장하세요.</p></section>
+   <div class="wizard-nav">${step > 0 ? '<button id="wizardPrev">이전</button>' : ''}${step < stepKeys.length - 1 ? '<button id="wizardNext">다음</button><button id="wizardSkip">건너뛰고 확인</button>' : ''}</div>
+   <p data-rule-error="true" role="status"></p>`;
     const bind = (selector, fn) =>
       host
         .querySelectorAll(selector)
         .forEach(b => b.addEventListener('click', () => edit(() => fn(b))));
-    bind('[data-edit-rule]', b => (selected = Number(b.dataset.editRule)));
+    bind('[data-edit-rule]', b => {
+      selected = Number(b.dataset.editRule);
+      step = Infinity;
+    });
     bind('[data-add-rule]', b => {
       draft.push(newUniversalRule(b.dataset.addRule));
       selected = draft.length - 1;
+      step = 0;
     });
     bind('#copyRule', () => {
       draft.push(cloneCatalog([r])[0]);
       selected = draft.length - 1;
+      step = Infinity;
     });
+    bind('#wizardPrev', () => step--);
+    bind('#wizardNext', () => step++);
+    bind('#wizardSkip', () => (step = stepKeys.length - 1));
     bind('#moveRuleUp', () => {
       if (selected) {
         [draft[selected - 1], draft[selected]] = [draft[selected], draft[selected - 1]];
@@ -437,6 +521,7 @@ function mountUniversalEditor(initial, parent, initialSetup = false) {
         throw Error('이 항목을 참조하는 연동과 조건을 먼저 해제하세요.');
       draft.splice(selected, 1);
       selected = 0;
+      step = Infinity;
     });
     bind('#addRuleReward', () =>
       r.rewards.push({ id: 'r-' + crypto.randomUUID(), label: '보상', resources: { gold: 50 } })
