@@ -20,7 +20,7 @@ function weeklyPeriod(gameId, now = new Date()) {
   const weekly = RESET_SCHEDULES[gameId]?.weekly;
   if (!weekly) return null;
   const day = Math.floor((now.getTime() + (9 - weekly.hour) * HOUR_MS) / DAY_MS);
-  return day - ((day + 4 - weekly.day) % 7 + 7) % 7;
+  return day - ((((day + 4 - weekly.day) % 7) + 7) % 7);
 }
 function kstDateKey(now = new Date()) {
   const kst = new Date(now.getTime() + 9 * HOUR_MS);
@@ -29,12 +29,24 @@ function kstDateKey(now = new Date()) {
 // On migration, establish the current period without erasing existing progress.
 function advancePeriod(owner, field, period, reset) {
   if (period == null) return;
-  if (owner[field] === undefined) { owner[field] = period; return; }
-  if (period > owner[field]) { reset(); owner[field] = period; }
+  if (owner[field] === undefined) {
+    owner[field] = period;
+    return;
+  }
+  if (period > owner[field]) {
+    reset();
+    owner[field] = period;
+  }
 }
 function scheduleLabel(gameId) {
   const schedule = RESET_SCHEDULES[gameId];
-  const time = (hour) => `${String(hour).padStart(2, '0')}:00`;
-  const daily = schedule.dailyUnknown ? '일일 시각 미확인 · 수동 갱신' : schedule.slots ? schedule.slots.map(time).join(' / ') : schedule.daily == null ? '정규 일일 퀘스트 없음' : `매일 ${time(schedule.daily)}`;
+  const time = hour => `${String(hour).padStart(2, '0')}:00`;
+  const daily = schedule.dailyUnknown
+    ? '일일 시각 미확인 · 수동 갱신'
+    : schedule.slots
+      ? schedule.slots.map(time).join(' / ')
+      : schedule.daily == null
+        ? '정규 일일 퀘스트 없음'
+        : `매일 ${time(schedule.daily)}`;
   return `한국 시간(KST) · 일일 갱신 ${daily}`;
 }
