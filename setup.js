@@ -135,6 +135,10 @@ function createCustomGame(name, rules, existingId, profileOptions = {}) {
     if (!GAMES.some(x => x[0] === id) && !state.customGames.some(x => x[0] === id))
       state.customGames.push([id, name, '◇', 'lime']);
     else if (isCustomGame(id)) state.customGames.find(x => x[0] === id)[1] = name;
+    else {
+      state.gameNames ||= {};
+      state.gameNames[id] = name;
+    }
     catalogAdapter(g).setBonus?.(g.profile.pass.active);
     syncCatalog(g);
     initializeCatalogProgress(id);
@@ -150,38 +154,57 @@ function createCustomGame(name, rules, existingId, profileOptions = {}) {
   else GAMES.find(x => x[0] === id)[1] = name;
   return id;
 }
+// Step 1: name + starting point. Nothing else is shown yet (sequential, not all-at-once).
 function openCustomSetup(existingId) {
+  const isBuiltinTarget =
+    existingId && (existingId === 'kards' || CATALOG_PRESETS.includes(existingId));
   openDialog(
-    '게임 구성 만들기',
-    `<div class="form-grid"><label>게임 이름<input id="customGameName" value="${escapeHtml(GAMES.find(x => x[0] === existingId)?.[1] || '')}" /></label><label>시작 구성<select id="catalogPreset"><option value="empty">빈 구성</option><option value="preset">KARDS 기본 구성</option>${CATALOG_PRESETS.map(id => `<option value="builtin:${id}">${escapeHtml(GAMES.find(x => x[0] === id)[1])} 기본 구성</option>`).join('')}${GAMES.filter(
+    '새 게임 만들기',
+    `<p class="wizard-help">먼저 이름을 정하고 시작 방식을 고르세요. 다음 화면에서 세부 내용을 하나씩 입력합니다.</p><div class="form-grid"><label>게임 이름<input id="customGameName" value="${escapeHtml(GAMES.find(x => x[0] === existingId)?.[1] || '')}" /></label><label>시작 구성<select id="catalogPreset"><option value="empty">빈 구성 — 요소를 하나씩 직접 추가합니다</option><option value="preset">KARDS 기본 구성</option>${CATALOG_PRESETS.map(id => `<option value="builtin:${id}">${escapeHtml(GAMES.find(x => x[0] === id)[1])} 기본 구성</option>`).join('')}${GAMES.filter(
       ([id]) => state.games[id]?.ruleCatalog?.length
     )
       .map(([id, name]) => `<option value="${id}">${escapeHtml(name)}의 규칙 복사</option>`)
       .join(
         ''
-      )}</select></label></div><button id="loadCatalogPreset">구성 가져오기</button>${catalogProfileFields()}<div id="customCatalogMount"></div><button id="createCustomGame">구성 저장</button><p id="customGameError" role="status"></p>`
+      )}</select></label></div><p id="customGameError" role="status"></p><button id="customSetupNext">다음</button>`
   );
-  let read = mountRuleEditor([], $('#customCatalogMount'), true);
-  $('#loadCatalogPreset').addEventListener('click', () => {
-    const choice = $('#catalogPreset').value;
-    $('#customCatalogMount').innerHTML = '';
-    read = mountRuleEditor(
-      choice === 'empty'
-        ? []
-        : cloneCatalog(
-            choice === 'preset'
+  if (isBuiltinTarget)
+    $('#catalogPreset').value = existingId === 'kards' ? 'preset' : 'builtin:' + existingId;
+  $('#customSetupNext').addEventListener('click', () => {
+    const name = $('#customGameName').value.trim();
+    if (!name || name.length > 60) {
+      $('#customGameError').textContent = '게임 이름은 1~60자로 입력하세요.';
+      return;
+    }
+    const choice = $('#catalogPreset').value,
+      isPreset = choice === 'preset' || choice.startsWith('builtin:'),
+      targetId = choice === 'preset' ? 'kards' : choice.startsWith('builtin:') ? choice.slice(8) : existingId,
+      loadRules = () =>
+        choice === 'empty'
+          ? []
+          : isPreset
+            ? choice === 'preset'
               ? defaultKardsRules()
-              : choice.startsWith('builtin:')
-                ? presetCatalog(choice.slice(8))
-                : catalogRules(state.games[choice])
-          ),
-      $('#customCatalogMount'),
-      true
-    );
+              : presetCatalog(choice.slice(8))
+            : cloneCatalog(catalogRules(state.games[choice]));
+    isPreset
+      ? openPresetChoiceStep(name, targetId, loadRules)
+      : openRuleEditorStep(name, loadRules(), targetId);
   });
-  $('#createCustomGame').addEventListener('click', () => {
+}
+// Step 2 (preset only): start the preset as-is, or review/customize it in the editor.
+function openPresetChoiceStep(name, targetId, loadRules) {
+  const opened = new Date();
+  openDialog(
+    '새 게임 만들기 — ' + escapeHtml(name),
+    `<p class="wizard-help">기본 구성 그대로 시작하거나, 다음 화면에서 직접 손볼 수 있습니다.</p>${catalogProfileFields()}<button id="startPresetAsIs">이대로 시작</button><button id="editPresetFirst">직접 편집</button><p id="customGameError" role="status"></p>`
+  );
+  $('#startPresetAsIs').addEventListener('click', () => {
     try {
-      createCustomGame($('#customGameName').value, read(), existingId, readCatalogProfile());
+      const rules = loadRules();
+      if (rules.some(r => rulePeriod(r, opened) !== rulePeriod(r)))
+        throw Error('갱신 시각이 지났습니다. 닫은 후 다시 설정하세요.');
+      createCustomGame(name, rules, targetId, readCatalogProfile());
     } catch (e) {
       $('#customGameError').textContent = e.message;
       return;
@@ -189,7 +212,25 @@ function openCustomSetup(existingId) {
     closeDialog();
     renderAll();
   });
+  $('#editPresetFirst').addEventListener('click', () =>
+    openRuleEditorStep(name, loadRules(), targetId)
+  );
 }
-function openSetup(id) {
-  return isCustomGame(id) ? openCustomSetup(id) : openPresetSetup(id);
+// Final step: the rule editor (빈 구성 / 규칙 복사 always land here; 프리셋은 "직접 편집" 선택 시).
+function openRuleEditorStep(name, rules, targetId) {
+  openDialog(
+    '새 게임 만들기 — ' + escapeHtml(name),
+    `${catalogProfileFields()}<div id="customCatalogMount"></div><button id="createCustomGame">구성 저장</button><p id="customGameError" role="status"></p>`
+  );
+  const read = mountRuleEditor(rules, $('#customCatalogMount'), true);
+  $('#createCustomGame').addEventListener('click', () => {
+    try {
+      createCustomGame(name, read(), targetId, readCatalogProfile());
+    } catch (e) {
+      $('#customGameError').textContent = e.message;
+      return;
+    }
+    closeDialog();
+    renderAll();
+  });
 }

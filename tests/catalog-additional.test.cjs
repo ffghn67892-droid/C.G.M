@@ -35,9 +35,9 @@ test('confirmed all-game reset clears rewards, progress, alerts and backups acro
   assert.equal(a.run('state.tray'), true);
   assert.equal(a.run("localStorage.getItem('deckroom-backup-v1')"), null);
   assert.equal(a.run("localStorage.getItem('deckroom-corrupt-backup')"), null);
-  assert.equal(a.document.querySelectorAll('[data-register]').length, 9);
+  assert.equal(a.document.querySelectorAll('.overview-card').length, 0);
   const reopened = start(a.saved());
-  assert.equal(reopened.document.querySelectorAll('[data-register]').length, 9);
+  assert.equal(reopened.document.querySelectorAll('.overview-card').length, 0);
   assert.equal(reopened.run('Object.values(state.games).some(g=>g.profile.pendingAlerts?.length)'), false);
 });
 
@@ -61,7 +61,8 @@ test('all supplied daily and weekly boundaries are KST, including Sunday and Mon
   for (const id of ['kards', 'master-duel', 'pokemon-pocket']) assert.equal(app.run(`weeklyPeriod('${id}')`), null);
 });
 
-test('main overview exposes nine games, with independent registration and reset', () => { const app = start(); app.run("state.activeGame='overview';renderAll()"); assert.equal(app.document.querySelectorAll('.overview-card').length, 9); app.run("award('mtga','example',{gold:750});save()"); const before = app.run("JSON.stringify(state.games.mtga)"); app.run("resetGame('kards');renderAll()"); assert.equal(app.run("state.games.kards.profile.registeredAt"), null); assert.equal(app.run("JSON.stringify(state.games.mtga)"), before); assert.equal(app.document.querySelectorAll('[data-register="kards"]').length, 1); });
+test('main overview exposes nine games, with independent registration and reset', () => { const app = start(); app.run("state.activeGame='overview';renderAll()"); assert.equal(app.document.querySelectorAll('.overview-card').length, 9); app.run("award('mtga','example',{gold:750});save()"); const before = app.run("JSON.stringify(state.games.mtga)"); app.run("resetGame('kards');renderAll()"); assert.equal(app.run("state.games.kards.profile.registeredAt"), null); assert.equal(app.run("JSON.stringify(state.games.mtga)"), before); assert.equal(app.document.querySelectorAll('.overview-card').length, 8); assert.equal(app.document.querySelector('[data-game-name="kards"]'), null); });
+test('unregistered games are hidden until created; overview shows an empty state with none registered', () => { const a = start(); a.run("for(const [id] of GAMES)state.games[id].profile.registeredAt=null;state.activeGame='overview';renderAll()"); assert.equal(a.document.querySelectorAll('.overview-card').length, 0); assert.ok(a.document.querySelector('.overview-empty')); assert.equal(a.document.querySelectorAll('#gameSwitcher .game-tab[data-game]').length, 1); assert.ok(a.document.querySelector('#newGameTab')); });
 
 test('all five chest tiers retain rarity distinction and exact currency amounts', () => { const a = start(); const expected = [{ gold: 30, '일반 와일드카드': 1 }, { gold: 80, '일반 와일드카드': 2, '무작위 일반 골드 카드': 2 }, { gold: 150, '한정 와일드카드': 3, '무작위 한정 골드 카드': 2 }, { gold: 250, '특수 와일드카드': 1, '한정 와일드카드': 1, '무작위 특수 골드 카드': 1, '무작위 등급 미상 골드 카드': 2 }, { gold: 350, '정예 와일드카드': 1, '특수 와일드카드': 1, '한정 와일드카드': 1, '무작위 특수 골드 카드': 2 }]; assert.deepEqual(JSON.parse(a.run('JSON.stringify(CHESTS)')), expected); });
 

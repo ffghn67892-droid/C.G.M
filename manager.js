@@ -31,9 +31,7 @@ function renderManaged() {
   if (!p.registeredAt) {
     $('#questList').innerHTML =
       '<div class="setup-empty"><h3>최초 설정</h3><p>현재 진행도와 이미 받은 보상을 등록하세요.</p><button id="beginSetup">설정 시작</button></div>';
-    $('#beginSetup').addEventListener('click', () =>
-      isCustomGame(id) ? openCustomSetup(id) : openSetup(id)
-    );
+    $('#beginSetup').addEventListener('click', () => openCustomSetup(id));
     save();
     return true;
   }

@@ -15,19 +15,22 @@ function muteGame(id) {
 }
 function renderNavigation() {
   $('body').classList.toggle('shadowverse-view', state.activeGame === 'shadowverse');
+  const registered = GAMES.filter(([id]) => state.games[id]?.profile?.registeredAt);
   $('#gameSwitcher').innerHTML =
     `<button class="game-tab ${state.activeGame === 'overview' ? 'active' : ''}" data-game="overview" role="tab" aria-selected="${state.activeGame === 'overview'}"><span class="game-tab-mark lime">⌂</span><span>메인</span></button>` +
-    GAMES.map(([id, name, mark, color]) => {
+    registered.map(([id, name, mark, color]) => {
       const status = gameStatus(id);
       return `<button class="game-tab ${state.activeGame === id ? 'active' : ''}" data-game="${id}" role="tab" aria-selected="${state.activeGame === id}"><span class="game-tab-mark ${color}">${mark}</span><span>${escapeHtml(name)}</span><b class="status-dot ${status.color}" aria-label="${status.color === 'urgent' ? '오늘 확인' : status.color === 'warning' ? '진행 권장' : status.color === 'pending' ? '진행 중' : status.label}">${status.label}</b></button>`;
-    }).join('');
-  $$('.game-tab').forEach(b =>
+    }).join('') +
+    `<button class="game-tab" id="newGameTab" type="button"><span class="game-tab-mark lime">+</span><span>새 게임 만들기</span></button>`;
+  $$('.game-tab[data-game]').forEach(b =>
     b.addEventListener('click', () => {
       state.activeGame = b.dataset.game;
       save();
       renderAll();
     })
   );
+  $('#newGameTab').addEventListener('click', () => openCustomSetup());
 }
 function spendingText(p) {
   const sum = {};
@@ -40,19 +43,20 @@ function spendingText(p) {
 }
 function renderOverview() {
   const searchTerm = ($('#gameSearch')?.value || '').trim();
+  const registered = GAMES.filter(([id]) => state.games[id]?.profile?.registeredAt);
   $('#questList').innerHTML =
-    `<div class="overview-heading"><h2>메인</h2><input type="search" id="gameSearch" placeholder="게임 검색" aria-label="게임 검색" value="${escapeHtml(searchTerm)}" /><label><input type="checkbox" id="trayOption" ${state.tray ? 'checked' : ''} />닫을 때 트레이에 유지</label></div><div class="overview-grid">${GAMES.map(
-      ([id, name]) => {
-        const p = state.games[id].profile,
-          s = gameStatus(id);
-        if (!p.registeredAt)
-          return `<article class="overview-card" data-game-name="${escapeHtml(name.toLowerCase())}"><h3>${escapeHtml(name)}</h3><p>설정 필요</p><button data-register="${id}">최초 설정</button></article>`;
-        const days = periodAt(0) - periodAt(0, 0, new Date(p.registeredAt));
-        return `<article class="overview-card" data-game-name="${escapeHtml(name.toLowerCase())}"><h3><span class="status-dot ${s.color}">${s.label}</span>${escapeHtml(name)}</h3><p class="overview-totals">${escapeHtml(rewardText(totals(id)))}</p><dl><dt>현금 지출</dt><dd>${spendingText(p)}</dd><dt>이용 일수</dt><dd>경과 ${days}일 · 활동 ${p.activityDays.length}일</dd><dt>패스</dt><dd>${p.pass.active ? '활성' : '미활성'} · Lv. ${p.pass.level}</dd><dt>종료</dt><dd>${p.pass.end ? escapeHtml(new Date(p.pass.end).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })) : '미지정'}</dd>${id === 'master-duel' && !state.games[id].masterDuel?.eventDeleted && Date.now() < Date.parse(DICE_END) ? '<dt>이벤트 종료</dt><dd>9월 21일 12:59 KST</dd>' : ''}</dl><div class="card-actions"><button data-open-game="${id}">게임 열기</button><button data-settings="${id}">상세 설정</button><button data-mute="${id}">${p.mutedUntil > Date.now() ? '오늘 알람 꺼짐' : '오늘의 알람 끄기'}</button></div></article>`;
-      }
-    ).join(
-      ''
-    )}</div><p class="muted" id="gameSearchEmpty" hidden>일치하는 게임이 없습니다.</p><p class="muted">트레이 유지 중에만 창을 닫아도 알림이 실행됩니다. 완전 종료하거나 PC를 끄면 알림이 멈춥니다.</p>`;
+    `<div class="overview-heading"><h2>메인</h2><input type="search" id="gameSearch" placeholder="게임 검색" aria-label="게임 검색" value="${escapeHtml(searchTerm)}" /><label><input type="checkbox" id="trayOption" ${state.tray ? 'checked' : ''} />닫을 때 트레이에 유지</label></div>${
+      registered.length
+        ? `<div class="overview-grid">${registered.map(
+            ([id, name]) => {
+              const p = state.games[id].profile,
+                s = gameStatus(id);
+              const days = periodAt(0) - periodAt(0, 0, new Date(p.registeredAt));
+              return `<article class="overview-card" data-game-name="${escapeHtml(name.toLowerCase())}"><h3><span class="status-dot ${s.color}">${s.label}</span>${escapeHtml(name)}</h3><p class="overview-totals">${escapeHtml(rewardText(totals(id)))}</p><dl><dt>현금 지출</dt><dd>${spendingText(p)}</dd><dt>이용 일수</dt><dd>경과 ${days}일 · 활동 ${p.activityDays.length}일</dd><dt>패스</dt><dd>${p.pass.active ? '활성' : '미활성'} · Lv. ${p.pass.level}</dd><dt>종료</dt><dd>${p.pass.end ? escapeHtml(new Date(p.pass.end).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })) : '미지정'}</dd>${id === 'master-duel' && !state.games[id].masterDuel?.eventDeleted && Date.now() < Date.parse(DICE_END) ? '<dt>이벤트 종료</dt><dd>9월 21일 12:59 KST</dd>' : ''}</dl><div class="card-actions"><button data-open-game="${id}">게임 열기</button><button data-settings="${id}">상세 설정</button><button data-mute="${id}">${p.mutedUntil > Date.now() ? '오늘 알람 꺼짐' : '오늘의 알람 끄기'}</button></div></article>`;
+            }
+          ).join('')}</div>`
+        : `<p class="muted overview-empty">등록된 게임이 없습니다. 위의 "게임 추가" 버튼이나 사이드바의 "새 게임 만들기"로 시작하세요.</p>`
+    }<p class="muted" id="gameSearchEmpty" hidden>일치하는 게임이 없습니다.</p><p class="muted">트레이 유지 중에만 창을 닫아도 알림이 실행됩니다. 완전 종료하거나 PC를 끄면 알림이 멈춥니다.</p>`;
   const applyGameSearch = () => {
     const term = $('#gameSearch').value.trim().toLowerCase();
     let visible = 0;
@@ -61,17 +65,10 @@ function renderOverview() {
       card.hidden = !match;
       if (match) visible++;
     });
-    $('#gameSearchEmpty').hidden = visible > 0;
+    $('#gameSearchEmpty').hidden = visible > 0 || !registered.length;
   };
   $('#gameSearch').addEventListener('input', applyGameSearch);
   if (searchTerm) applyGameSearch();
-  $$('[data-register]').forEach(b =>
-    b.addEventListener('click', () =>
-      isCustomGame(b.dataset.register)
-        ? openCustomSetup(b.dataset.register)
-        : openSetup(b.dataset.register)
-    )
-  );
   $$('[data-open-game]').forEach(b =>
     b.addEventListener('click', () => {
       state.activeGame = b.dataset.openGame;

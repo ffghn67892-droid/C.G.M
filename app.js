@@ -28,6 +28,10 @@ const state = stored?.games
     };
 for (const entry of state.customGames || [])
   if (!GAMES.some(([id]) => id === entry[0])) GAMES.push(entry);
+for (const [id, name] of Object.entries(state.gameNames || {})) {
+  const entry = GAMES.find(([gid]) => gid === id);
+  if (entry) entry[1] = name;
+}
 let lastCommittedState = structuredClone(state);
 let lastCommittedSerialized = localStorage.getItem('deckroom-quests');
 function restoreCommittedState() {

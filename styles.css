@@ -75,3 +75,5 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .toast.show { opacity: 1; transform: translateY(0px); }
 .difficulty-modal { position: fixed; inset: 0px; z-index: 10; display: grid; place-items: center; background: rgba(13, 16, 14, 0.8); }
 .difficulty-modal[hidden] { display: none; }
+.wizard-help { color: var(--muted); font-size: 12px; line-height: 1.6; margin: 6px 0px 14px; }
+.overview-empty { padding: 40px 0px; text-align: center; }

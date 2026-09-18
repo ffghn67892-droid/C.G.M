@@ -115,31 +115,6 @@ function readCatalogProfile() {
     throw Error('등록일을 확인하세요.');
   return { registeredAt: at, paid: document.querySelector('#initialPaid').checked };
 }
-function openPresetSetup(id) {
-  const opened = new Date();
-  openDialog(
-    '최초 규칙 구성',
-    catalogProfileFields() +
-      '<div id="presetEditor"></div><button id="savePreset">설정 저장</button><p id="presetError" role="status"></p>'
-  );
-  const read = mountUniversalEditor(
-    presetCatalog(id),
-    document.querySelector('#presetEditor'),
-    true
-  );
-  document.querySelector('#savePreset').addEventListener('click', () => {
-    try {
-      const rules = read();
-      if (rules.some(r => rulePeriod(r, opened) !== rulePeriod(r)))
-        throw Error('갱신 시각이 지났습니다. 닫은 후 다시 설정하세요.');
-      createCustomGame(GAMES.find(x => x[0] === id)[1], rules, id, readCatalogProfile());
-      closeDialog();
-      renderAll();
-    } catch (e) {
-      document.querySelector('#presetError').textContent = e.message;
-    }
-  });
-}
 function openUniversalSettings(id) {
   const g = state.games[id],
     p = g.profile;
@@ -195,7 +170,7 @@ function openUniversalSettings(id) {
       resetGame(id);
       closeDialog();
       renderAll();
-      isCustomGame(id) ? openCustomSetup(id) : openPresetSetup(id);
+      openCustomSetup(id);
     });
   });
 }
