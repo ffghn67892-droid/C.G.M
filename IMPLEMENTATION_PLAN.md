@@ -1,7 +1,7 @@
 # DECKROOM 확장 실행 계획
 
 작성: 2026-09-17 KST
-상태: 구현 및 회귀 검증 완료. 실제 적용 내역과 미등록 데이터/검증 범위는 [IMPLEMENTATION_REPORT.md](IMPLEMENTATION_REPORT.md)를 확인하십시오.
+상태: 구현 및 회귀 검증 완료. 실제 적용 내역과 미등록 데이터/검증 범위는 [IMPLEMENTATION_REPORT.md](docs/history/IMPLEMENTATION_REPORT.md)를 확인하십시오.
 근거: 사용자가 첨부한 확장 계획과 2026-09-17 추가 답변. 게임 규칙은 사용자 제공 설정으로 취급한다.
 
 ## 1. 확정된 기준

@@ -1,8 +1,8 @@
 # DECKROOM 작업 지침
 
-> 후속 회귀 수정 완료(2026-09-19): dateKey 이관·초기 구매 지출·편집 일정 표시·단계 캐시·경계 중복 계산을 수정했다. 현재 기본 검사는 29개다. 결과/복구: [REGRESSION_FIXES.md](REGRESSION_FIXES.md), 제외 검사 74개 대응: [REGRESSION_TEST_COVERAGE.md](REGRESSION_TEST_COVERAGE.md).
+> 현재 상태는 [HANDOFF.md](HANDOFF.md)를 참고하십시오.
 
-현재 상태: **A~E8·F·G 완료**. 최종 구조·검증·복구는 [REFACTOR_STAGE_G.md](REFACTOR_STAGE_G.md), F 결과와 측정·복구는 [REFACTOR_STAGE_F.md](REFACTOR_STAGE_F.md), 범용 엔진 이관 결과는 [REFACTOR_STAGE_E.md](REFACTOR_STAGE_E.md)를 따른다. 이전 단계 문서의 승인 대기 상태는 역사 기록이다.
+현재 상태: **A~E8·F·G 완료**. 최종 구조·검증·복구는 [REFACTOR_STAGE_G.md](REFACTOR_STAGE_G.md), F 결과와 측정·복구는 [REFACTOR_STAGE_F.md](docs/history/REFACTOR_STAGE_F.md), 범용 엔진 이관 결과는 [REFACTOR_STAGE_E.md](docs/history/REFACTOR_STAGE_E.md)를 따른다. 이전 단계 문서의 승인 대기 상태는 역사 기록이다.
 
 작업 시작 시 `HANDOFF.md`의 현재 원칙과 `IMPLEMENTATION_PLAN.md` 10절을 확인한다.
 

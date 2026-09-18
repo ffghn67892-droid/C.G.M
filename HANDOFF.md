@@ -1,6 +1,6 @@
 # DECKROOM 인수인계
 
-> 후속 회귀 수정 완료(2026-09-19): dateKey 이관·초기 구매 지출·편집 일정 표시·단계 캐시·경계 중복 계산을 수정했다. 현재 기본 검사는 29개다. 결과/복구: [REGRESSION_FIXES.md](REGRESSION_FIXES.md), 제외 검사 74개 대응: [REGRESSION_TEST_COVERAGE.md](REGRESSION_TEST_COVERAGE.md).
+> 후속 회귀 수정 완료(2026-09-19): dateKey 이관·초기 구매 지출·편집 일정 표시·단계 캐시·경계 중복 계산을 수정했다. 현재 기본 검사는 29개다. 결과/복구: [REGRESSION_FIXES.md](docs/history/REGRESSION_FIXES.md), 제외 검사 74개 대응: [REGRESSION_TEST_COVERAGE.md](REGRESSION_TEST_COVERAGE.md).
 
 현재 상태: **2026-09-19 A~E8·F·G 리팩터링 완료**. 사용자는 G 작업까지 승인했다. 이전 문서의 승인 대기는 당시 기록이며 현재 상태가 아니다.
 
@@ -11,9 +11,10 @@
 - 최상위 설계: [UNIVERSAL_RULE_SYSTEM.md](UNIVERSAL_RULE_SYSTEM.md)
 - 현행 구조·실행 흐름: [ARCHITECTURE.md](ARCHITECTURE.md)
 - 최종 정리·검증·복구: [REFACTOR_STAGE_G.md](REFACTOR_STAGE_G.md)
-- 성능 측정: [REFACTOR_STAGE_F.md](REFACTOR_STAGE_F.md)
-- 게임 이관 결과: [REFACTOR_STAGE_E.md](REFACTOR_STAGE_E.md)
-- 과거 인수인계 기록: [HANDOFF_HISTORY.md](HANDOFF_HISTORY.md). 이전 파일 구조·검증 명령·미완료 표시는 현재 구조보다 우선하지 않는다.
+- 성능 측정: [REFACTOR_STAGE_F.md](docs/history/REFACTOR_STAGE_F.md)
+- 게임 이관 결과: [REFACTOR_STAGE_E.md](docs/history/REFACTOR_STAGE_E.md)
+- 과거 인수인계 기록: [HANDOFF_HISTORY.md](docs/history/HANDOFF_HISTORY.md). 이전 파일 구조·검증 명령·미완료 표시는 현재 구조보다 우선하지 않는다.
+- 과거 리팩터링 단계 문서·최초 계획서 전체 색인: [docs/history/README.md](docs/history/README.md)
 
 ## 현재 작업 원칙
 
@@ -22,7 +23,7 @@
 1. 검증은 변경 기능과 직접 영향을 받는 범위로 제한한다. 문서만 수정하면 앱 검사는 실행하지 않는다.
 2. 기본 `npm.cmd test`는 핵심 29개다. 비치명적·중복 검사를 생략하고 종전 74개 대비 절반 이상 적은 36개 이하 구성을 유지한다. 공통 보상·저장·갱신 변경에는 현재 핵심 검사를 실행하며, 보상 금액·상태·중복 지급·실패 복구를 우선한다.
 3. 화면 변경은 영향받는 화면과 필요한 창 크기만 확인한다. 검사 통과 후 새 변경·실패·미해결 우려 없이 반복하거나 확대하지 않는다.
-4. 사용자가 다시 요청할 때까지 설치 관련 파일·배포 빌드·설치본 검증은 제외한다. 현재 package.json 배포 파일 목록은 소스 구성과 불일치하므로 설치 작업 재개 시 별도 수정·검증이 필요하다.
+4. 사용자가 다시 요청할 때까지 설치 관련 파일·배포 빌드·설치본 검증은 제외한다. package.json 배포 파일 목록은 소스 구성과 동기화했다(2026-09-19, AI 작업 친화적 구조 개편 H2). 다만 `npm run dist` 실행이나 설치본 자체는 아직 검증하지 않았다.
 5. 완료된 A~G를 재시작하지 않는다. 새로운 단계 작업을 별도로 제안하면 기존 사용자 원칙대로 범위·검증·복구 지점을 제시하고 승인받는다.
 
 ## G 완료 상태

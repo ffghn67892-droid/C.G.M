@@ -45,7 +45,7 @@ A 이전에는 같은 범용 패스 페이지가 없으므로 A 대비 앱 응�
 
 ## 테스트 축소 영향
 
-[REGRESSION_TEST_COVERAGE.md](REGRESSION_TEST_COVERAGE.md)에 제외 파일의 74개 선언을 모두 대조했다. 대응 검사, 부분 대응, 공백, 폐기된 UI를 구분했다. 전체를 다시 실행하여 녹색이라고 주장하지 않는다.
+[REGRESSION_TEST_COVERAGE.md](../../REGRESSION_TEST_COVERAGE.md)에 제외 파일의 74개 선언을 모두 대조했다. 대응 검사, 부분 대응, 공백, 폐기된 UI를 구분했다. 전체를 다시 실행하여 녹색이라고 주장하지 않는다.
 
 - `dateKey`: 옛 MTGA 구형 완료 변환 검사가 직접 관련된다. 그 시나리오를 새 카탈로그 이전 fixture와 데이터 단언으로 이관했으면 잡았을 회귀다. 원본 그대로는 새 fixture의 catalogVersion와 삭제된 UI 때문에 정확한 진단을 보장하지 않는다. 이번에 MTGA와 Might 양쪽을 기본 검사에 넣었다.
 - 초기 구매 지출: 옛 초기 보상 검사는 지출까지 단언하지 않았다. 기존 테스트 유지 여부와 별개인 신규 기능 검증 누락이다.

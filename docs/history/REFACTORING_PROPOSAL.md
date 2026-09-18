@@ -1,6 +1,6 @@
 # DECKROOM 리팩터링 제안서
 
-> 현재 상태: **2026-09-19 A~E8·F·G 완료.** 현재 구조는 [ARCHITECTURE.md](ARCHITECTURE.md), 최종 검증·복구는 [REFACTOR_STAGE_G.md](REFACTOR_STAGE_G.md)를 따른다. 아래 단계별 상태와 파일 배치는 과거 계획·진행 기록이며, 현재 상태보다 우선하지 않는다. 후속 회귀 수정 후 기본 검사는 핵심 29개다. REGRESSION_FIXES.md 및 REGRESSION_TEST_COVERAGE.md를 참조한다.
+> 현재 상태: **2026-09-19 A~E8·F·G 완료.** 현재 구조는 [ARCHITECTURE.md](../../ARCHITECTURE.md), 최종 검증·복구는 [REFACTOR_STAGE_G.md](../../REFACTOR_STAGE_G.md)를 따른다. 아래 단계별 상태와 파일 배치는 과거 계획·진행 기록이며, 현재 상태보다 우선하지 않는다. 후속 회귀 수정 후 기본 검사는 핵심 29개다. REGRESSION_FIXES.md 및 REGRESSION_TEST_COVERAGE.md를 참조한다.
 
 > 최종 상태: **E1~E8 완료, F·G 승인 대기.** 기본 9게임과 사용자 게임이 범용 규칙 엔진·편집기·화면을 공유한다. 검증 기본값은 `npm.cmd test` 핵심 18개이며 이전 74개 전체 실행을 반복하지 않는다. Electron 최소 창 9게임·공통 편집기 확인 완료. [REFACTOR_STAGE_E.md](REFACTOR_STAGE_E.md)에 이관·검증·복구 및 남은 정리 범위를 기록했다. 아래 이전 진행 상태보다 이 기록이 우선한다.
 
@@ -8,7 +8,7 @@
 
 > 2026-09-18 적용 상태: **D 범용 기반 보완 완료, E1 승인 대기.** 메인의 게임 추가로 빈 구성·프리셋 복사를 제공하고 KARDS와 사용자 게임이 quest/claim 엔진·편집기·화면을 공유한다. 전체 74개 테스트 및 Electron 확인 통과. goal·충전 자원·패스와 나머지 게임 프리셋 전환은 후속 단계다. [REFACTOR_STAGE_D_UNIVERSAL.md](REFACTOR_STAGE_D_UNIVERSAL.md) 참조. 아래 보완 제안·승인 대기 문구는 보완 전 기록이며 이 상태가 우선한다.
 
-> 2026-09-18 최상위 목표 정정: [UNIVERSAL_RULE_SYSTEM.md](UNIVERSAL_RULE_SYSTEM.md)를 우선한다. 게임별 전용 형식은 만들지 않으며 기본 게임도 범용 형식의 프리셋으로 구현한다. D의 KARDS 구현은 완료했으나 범용 기반은 미완성이므로 E1 이전에 D 보완(범용 기반 전환)을 제안한다. 보완·E단계 모두 아직 착수하지 않았으며 별도 승인이 필요하다. 아래 기존 단계 순서·공수는 이 보완 범위에 맞춰 착수 승인 전에 재산정한다.
+> 2026-09-18 최상위 목표 정정: [UNIVERSAL_RULE_SYSTEM.md](../../UNIVERSAL_RULE_SYSTEM.md)를 우선한다. 게임별 전용 형식은 만들지 않으며 기본 게임도 범용 형식의 프리셋으로 구현한다. D의 KARDS 구현은 완료했으나 범용 기반은 미완성이므로 E1 이전에 D 보완(범용 기반 전환)을 제안한다. 보완·E단계 모두 아직 착수하지 않았으며 별도 승인이 필요하다. 아래 기존 단계 순서·공수는 이 보완 범위에 맞춰 착수 승인 전에 재산정한다.
 
 작성: 2026-09-18 KST
 상태: A·B·C·D단계를 완료했다. **E1단계 시작 승인 대기.** A의 기준선·커버리지·실패 재현·성능·복구 결과는 [REFACTOR_BASELINE.md](REFACTOR_BASELINE.md), B·C의 변경·검증 결과는 [REFACTOR_STAGE_B.md](REFACTOR_STAGE_B.md), [REFACTOR_STAGE_C.md](REFACTOR_STAGE_C.md)를 참조한다. D의 구현·선언 형식·검증은 [REFACTOR_STAGE_D.md](REFACTOR_STAGE_D.md)에 기록했다. E1에서 MTGA의 quest·goal 이관을 다룬다.

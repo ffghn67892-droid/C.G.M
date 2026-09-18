@@ -1,6 +1,6 @@
 # DECKROOM 현재 코드 구조
 
-> 후속 회귀 수정 완료(2026-09-19): dateKey 이관·초기 구매 지출·편집 일정 표시·단계 캐시·경계 중복 계산을 수정했다. 현재 기본 검사는 29개다. 결과/복구: [REGRESSION_FIXES.md](REGRESSION_FIXES.md), 제외 검사 74개 대응: [REGRESSION_TEST_COVERAGE.md](REGRESSION_TEST_COVERAGE.md).
+> 현재 상태는 [HANDOFF.md](HANDOFF.md)를 참고하십시오.
 
 2026-09-19 · A~G 리팩터링 완료 기준. 과거 제안서의 게임별 폴더 분할보다 범용 규칙 시스템을 우선한다.
 
@@ -44,4 +44,4 @@
 
 기본 검사는 `npm.cmd test` 핵심 29개다. 변경 범위별 추가 검증 원칙은 IMPLEMENTATION_PLAN.md 10절을 따른다. G의 비교 자료와 한계는 REFACTOR_STAGE_G.md에 있다.
 
-설치 작업은 사용자 요청으로 중단되어 있다. package.json의 배포 파일 목록은 현재 소스 구성과 동기화되지 않았다. 소스 실행 확인을 배포·설치본 검증으로 간주하면 안 된다.
+설치 작업은 사용자 요청으로 중단되어 있다. package.json의 배포 파일 목록은 현재 소스 구성과 동기화했다(2026-09-19). 다만 `npm run dist` 실행이나 설치본 자체를 검증하지는 않았으므로, 소스 실행 확인을 배포·설치본 검증으로 간주하면 안 된다.
