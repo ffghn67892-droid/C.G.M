@@ -1,0 +1,48 @@
+{
+  "name": "deckroom",
+  "version": "1.0.0",
+  "description": "Multi-game card game management desktop app",
+  "main": "electron-main.js",
+  "private": true,
+  "scripts": {
+    "test": "node --test tests/catalog-critical.test.cjs tests/catalog-safety.test.cjs",
+    "start": "electron .",
+    "dev:web": "npx serve .",
+    "dist": "electron-builder --win nsis"
+  },
+  "devDependencies": {
+    "@xmldom/xmldom": "0.8.15",
+    "electron": "^38.1.0",
+    "electron-builder": "^26.0.12",
+    "serve": "^14.2.4"
+  },
+  "build": {
+    "appId": "com.deckroom.app",
+    "productName": "DECKROOM",
+    "files": [
+      "index.html",
+      "styles.css",
+      "app.js",
+      "schedules.js",
+      "park-quests.js",
+      "electron-main.js",
+      "package.json",
+      "reward-ledger.js",
+      "pass-data.js",
+      "game-config.js",
+      "game-extras.js",
+      "setup.js",
+      "mission-updates.js",
+      "overview.js",
+      "alerts.js",
+      "manager.js",
+      "manager.css",
+      "preload.js",
+      "desktop-main.js"
+    ],
+    "win": {
+      "target": "nsis",
+      "artifactName": "DECKROOM-Setup-${version}.${ext}"
+    }
+  }
+}

@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DECKROOM | 퀘스트 매니저</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" /><link rel="stylesheet" href="manager.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand"><span class="brand-mark">✦</span><span>DECKROOM</span></div>
+      <div class="profile-card"><div class="avatar">M</div><div><strong>마루의 계정</strong><small>퀘스트 관리</small></div></div>
+      <div class="game-switcher" id="gameSwitcher" role="tablist" aria-label="관리할 게임 선택"></div>
+    </aside>
+    <main class="main-content">
+      <div class="page-content">
+        <section class="page-heading"><div><p class="reset-schedule" id="resetScheduleInfo"></p></div></section>
+        <section class="quest-panel" id="questsPanel"><div class="section-heading"><div><span class="section-kicker">TASK LIST</span><h2>퀘스트 현황</h2></div><div class="heading-actions"><div class="quest-summary" id="questSummary" hidden><span id="questSummaryLabel">누적 획득 골드</span><strong id="questSummaryValue"></strong></div></div></div><div class="quest-list" id="questList"></div></section>
+      </div>
+    </main>
+  </div>
+  <div class="toast" id="toast" role="status"></div>
+  <script src="schedules.js"></script>
+  <script src="game-data.js"></script>
+  <script src="app.js"></script><script src="reward-ledger.js"></script><script src="pass-data.js"></script><script src="game-config.js"></script><script src="setup.js"></script><script src="overview.js"></script><script src="alerts.js"></script><script src="catalog-engine.js"></script><script src="catalog-presets.js"></script><script src="catalog-view.js"></script><script src="catalog-editor.js"></script><script src="refresh-scheduler.js"></script><script src="legacy-migrations.js"></script><script src="manager.js"></script>
+</body>
+</html>

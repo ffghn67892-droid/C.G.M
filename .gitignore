@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.qa-profile/
+.qa-desktop/
+qa/
+.refactor-audit/
+.refactor-checkpoints/
+.claude/settings.local.json
