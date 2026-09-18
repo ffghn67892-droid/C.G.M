@@ -359,7 +359,7 @@ function mountUniversalEditor(initial, parent, initialSetup = false) {
     r.quests ||= [];
     const others = draft.filter(x => x !== r).map(x => [x.id, x.label]),
       date = v => (v ? new Date(Date.parse(v) + 9 * HOUR_MS).toISOString().slice(0, 16) : '');
-    host.innerHTML = `<h3>규칙 구성 · ${CATALOG_TYPES[r.type]}</h3><div class="rule-nav">${draft.map((x, i) => `<button data-edit-rule="${i}" aria-pressed="${selected === i}">${escapeHtml(x.label)}</button>`).join('')}</div><div class="rule-nav">${add}<button id="copyRule">규칙 복제</button><button id="moveRuleUp">앞으로 이동</button><button id="removeRule">이 규칙 삭제</button></div>
+    host.innerHTML = `<h3>규칙 구성 · ${CATALOG_TYPES[r.type]}</h3><div class="rule-nav">${draft.map((x, i) => `<button data-edit-rule="${i}" aria-pressed="${selected === i}">${escapeHtml(x.label)}</button>`).join('')}</div><div class="rule-nav">${add}<button id="copyRule">규칙 복제</button><button id="moveRuleUp">앞으로 이동</button><button id="removeRule" class="danger">이 규칙 삭제</button></div>
    <div class="form-grid">${input('label', '이름', r.label)}${input('page', '페이지 그룹 (비워두면 항상 표시)', r.page)}${select(
      'span',
      '카드 너비',

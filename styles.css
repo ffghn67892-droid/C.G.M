@@ -1,10 +1,11 @@
-:root { --ink: #171918; --panel: #202321; --panel-2: #262a27; --line: #383d39; --muted: #8d958e; --soft: #bbc1b9; --cream: #f3f1e8; --lime: #c8ee72; --coral: #ff866e; --blue: #8fc7dc; --yellow: #f2cf68; }
+:root { --ink: #171918; --panel: #202321; --line: #383d39; --muted: #8d958e; --cream: #f3f1e8; --lime: #c8ee72; --coral: #ff866e; --blue: #8fc7dc; --yellow: #f2cf68; --sidebar-width: 286px; --danger-bg: #5d2a2a; --danger-border: #a35a5a; --danger-text: #edf3e8; }
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
 body { min-width: 0px; margin: 0px; background: var(--ink); color: var(--cream); font-family: Outfit, "Malgun Gothic", sans-serif; letter-spacing: 0px; }
 button { font: inherit; color: inherit; border: 0px; cursor: pointer; }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--lime); outline-offset: 2px; }
 .app-shell { display: flex; min-height: 100vh; }
-.sidebar { position: fixed; inset: 0px auto 0px 0px; width: 250px; display: flex; flex-direction: column; padding: 30px 20px 24px; background: rgb(27, 30, 28); border-right: 1px solid var(--line); }
+.sidebar { position: fixed; inset: 0px auto 0px 0px; width: var(--sidebar-width); display: flex; flex-direction: column; padding: 30px 20px 24px; background: rgb(27, 30, 28); border-right: 1px solid var(--line); }
 .brand { display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 700; letter-spacing: 0.12em; margin: 0px 11px 42px; }
 .brand-mark { color: var(--lime); font-size: 22px; }
 .profile-card { display: flex; align-items: center; gap: 10px; padding: 11px 10px; margin-bottom: 35px; border: 1px solid var(--line); border-radius: 8px; background: rgb(36, 40, 37); }
@@ -14,7 +15,7 @@ button { font: inherit; color: inherit; border: 0px; cursor: pointer; }
 .profile-card small { display: block; margin-top: 3px; color: var(--muted); font-size: 10px; }
 .status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--lime); display: inline-block; box-shadow: rgba(200, 238, 114, 0.125) 0px 0px 0px 3px; }
 .muted { color: rgb(102, 112, 105); }
-.main-content { width: calc(100% - 250px); margin-left: 250px; }
+.main-content { width: calc(100% - var(--sidebar-width)); margin-left: var(--sidebar-width); }
  .section-kicker { color: var(--muted); font: 10px "DM Mono", monospace; letter-spacing: 0.13em; }
 .game-switcher { display: grid; gap: 5px; margin-top: 30px; overflow-y: auto; scrollbar-width: thin; }
 .game-tab { display: flex; align-items: center; gap: 8px; width: 100%; padding: 9px 10px; border: 1px solid transparent; border-radius: 5px; background: transparent; color: var(--muted); font-size: 11px; text-align: left; white-space: nowrap; }
@@ -74,7 +75,3 @@ button { font: inherit; color: inherit; border: 0px; cursor: pointer; }
 .toast.show { opacity: 1; transform: translateY(0px); }
 .difficulty-modal { position: fixed; inset: 0px; z-index: 10; display: grid; place-items: center; background: rgba(13, 16, 14, 0.8); }
 .difficulty-modal[hidden] { display: none; }
-@media (max-width: 1000px) {
-.sidebar { width: 210px; }
-.main-content { width: calc(100% - 210px); margin-left: 210px; }
-}
