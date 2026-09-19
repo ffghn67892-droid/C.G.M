@@ -8,32 +8,21 @@ function alertScheduleInput(g) {
     g.profile.alerts.reset,
     g.profile.alerts.full,
     g.profile.mutedUntil,
-    ...catalogRules(g).map(r => r.id + ':' + rulePeriod(r)),
-    ...catalogRules(g)
-      .filter(r => r.type === 'resource')
-      .map(r => {
-        const p = ruleProgress(g, r);
-        return p.value >= r.capacity ? r.id + '/' + p.clock : '';
-      })
+    ...catalogRules(g).map(
+      r =>
+        r.id +
+        ':' +
+        (r.format === 'fixed' ? (ruleProgress(g, r).ended ? 'ended' : 'active') : rulePeriod(g, r))
+    )
   ].join('|');
 }
-function nextRuleBoundary(rule, now = new Date()) {
-  const s = rule.schedule,
-    period = rulePeriod(rule, now);
-  if (s.kind === 'once') return Infinity;
-  if (s.kind === 'monthly') {
-    const month = period + 1;
-    return Date.UTC(Math.floor(month / 12), month % 12, 1) - 9 * HOUR_MS;
-  }
-  if (s.kind === 'slots') {
-    const times = [...s.times].sort(),
-      next = period + 1,
-      day = Math.floor(next / times.length),
-      [h, m] = times[next % times.length].split(':').map(Number);
-    return day * DAY_MS + (h - 9) * HOUR_MS + m * 60000;
-  }
-  const [h, m] = s.time.split(':').map(Number);
-  return (period + ruleInterval(rule)) * DAY_MS + (h - 9) * HOUR_MS + m * 60000;
+// Fixed-format rules have no recurring boundary; their only future event is the end date.
+function nextRuleBoundary(g, r, now = new Date()) {
+  if (r.format === 'fixed') return dateOnlyMs(r.endDate);
+  const sched = ruleResetSchedule(g, r),
+    period = rulePeriod(g, r, now),
+    [h, m] = sched.time.split(':').map(Number);
+  return (period + (r.format === 'weekly' ? 7 : 1)) * DAY_MS + (h - 9) * HOUR_MS + m * 60000;
 }
 function rebuildRefreshDeadline(now = new Date()) {
   const at = now.getTime();
@@ -44,26 +33,16 @@ function rebuildRefreshDeadline(now = new Date()) {
   for (const [id] of GAMES) {
     const g = state.games[id];
     if (!g?.profile?.registeredAt) continue;
-    if (!catalogEnabled(id)) {
-      next = at;
-      continue;
-    }
     if (scheduledAlertInputs.get(g) !== alertScheduleInput(g)) next = at;
-    if (g.profile.pass.active && Date.parse(g.profile.pass.end) <= at) next = at;
+    if (g.pass?.active && g.pass.endDate && dateOnlyMs(g.pass.endDate) <= at) next = at;
     consider(g.profile.mutedUntil);
-    consider(Date.parse(g.profile.pass.end));
+    if (g.pass?.endDate) consider(dateOnlyMs(g.pass.endDate));
     for (const r of catalogRules(g)) {
-      const p = ruleProgress(g, r),
-        previous = p.period ?? p.resetPeriod;
-      if (r.type !== 'resource' && (previous === undefined || rulePeriod(r, now) > previous))
+      const p = ruleProgress(g, r);
+      if (r.format !== 'fixed' && (p.period === undefined || rulePeriod(g, r, now) > p.period))
         next = at;
-      consider(nextRuleBoundary(r, now));
-      consider(Date.parse(r.start));
-      consider(Date.parse(r.end));
-      if (r.type === 'resource') {
-        const p = ruleProgress(g, r);
-        if (p.value < r.capacity) next = Math.min(next, p.clock + r.intervalMinutes * 60000);
-      }
+      consider(nextRuleBoundary(g, r, now));
+      if (r.format === 'fixed') consider(dateOnlyMs(r.startDate));
     }
   }
   nextRefreshAt = next;

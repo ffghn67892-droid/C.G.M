@@ -55,9 +55,10 @@ function renderOverview() {
         ? `<div class="overview-grid">${registered.map(
             ([id, name]) => {
               const p = state.games[id].profile,
+                pass = state.games[id].pass,
                 s = gameStatus(id);
               const days = periodAt(0) - periodAt(0, 0, new Date(p.registeredAt));
-              return `<article class="overview-card" data-game-name="${escapeHtml(name.toLowerCase())}"><h3>${statusBadgeHtml(s)}${escapeHtml(name)}</h3><dl><dt>현금 지출</dt><dd>${spendingText(p)}</dd><dt>이용 일수</dt><dd>경과 ${days}일 · 활동 ${p.activityDays.length}일</dd><dt>패스</dt><dd>${p.pass.active ? '활성' : '미활성'} · Lv. ${p.pass.level}</dd><dt>종료</dt><dd>${p.pass.end ? escapeHtml(new Date(p.pass.end).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })) : '미지정'}</dd>${id === 'master-duel' && !state.games[id].masterDuel?.eventDeleted && Date.now() < Date.parse(DICE_END) ? '<dt>이벤트 종료</dt><dd>9월 21일 12:59 KST</dd>' : ''}</dl><div class="card-actions"><button data-open-game="${id}">게임 열기</button><button data-settings="${id}">상세 설정</button><button data-mute="${id}">${p.mutedUntil > Date.now() ? '오늘 알람 꺼짐' : '오늘의 알람 끄기'}</button></div></article>`;
+              return `<article class="overview-card" data-game-name="${escapeHtml(name.toLowerCase())}"><h3>${statusBadgeHtml(s)}${escapeHtml(name)}</h3><dl><dt>현금 지출</dt><dd>${spendingText(p)}</dd><dt>이용 일수</dt><dd>경과 ${days}일 · 활동 ${p.activityDays.length}일</dd>${pass ? `<dt>패스</dt><dd>${pass.active ? '활성' : '미활성'} · Lv. ${pass.level || 0}</dd><dt>종료</dt><dd>${pass.endDate ? escapeHtml(pass.endDate) : '미지정'}</dd>` : ''}${id === 'master-duel' && !state.games[id].masterDuel?.eventDeleted && Date.now() < Date.parse(DICE_END) ? '<dt>이벤트 종료</dt><dd>9월 21일 12:59 KST</dd>' : ''}</dl><div class="card-actions"><button data-open-game="${id}">게임 열기</button><button data-settings="${id}">상세 설정</button><button data-mute="${id}">${p.mutedUntil > Date.now() ? '오늘 알람 꺼짐' : '오늘의 알람 끄기'}</button></div></article>`;
             }
           ).join('')}</div>`
         : `<p class="muted overview-empty">등록된 게임이 없습니다. 위의 "게임 추가" 버튼이나 사이드바의 "새 게임 만들기"로 시작하세요.</p>`
@@ -102,7 +103,7 @@ function renderOverview() {
   resetButton.addEventListener('click', () => {
     openDialog(
       '모든 게임 초기화',
-      `<p>게임 ${GAMES.length}개의 진행도, 누적 보상, 패스, 지출, 활동일, 이벤트, 알림 및 게임 데이터 백업을 모두 삭제합니다. 각 게임은 최초 설정 상태로 돌아갑니다.</p><p>이 작업은 되돌릴 수 없습니다.</p><button id="confirmAllGamesReset" class="danger">모든 게임 데이터 삭제</button>`
+      `<p>게임 ${GAMES.length}개의 진행도, 패스, 지출, 활동일, 이벤트, 알림 및 게임 데이터 백업을 모두 삭제합니다. 각 게임은 최초 설정 상태로 돌아갑니다.</p><p>이 작업은 되돌릴 수 없습니다.</p><button id="confirmAllGamesReset" class="danger">모든 게임 데이터 삭제</button>`
     );
     $('#confirmAllGamesReset').addEventListener('click', () => {
       try {

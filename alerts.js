@@ -38,7 +38,7 @@ function updateAlerts(id) {
   const resetKey =
     id === 'kards' || catalogEnabled(id)
       ? `reset/${catalogRules(g)
-          .map(r => r.id + ':' + rulePeriod(r))
+          .map(r => r.id + ':' + rulePeriod(g, r))
           .join('/')}`
       : reset;
   if (p.alerts.reset && p.lastAlertPeriod !== undefined && p.lastAlertPeriod !== resetKey)

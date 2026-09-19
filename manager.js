@@ -7,12 +7,11 @@ function renderManaged() {
   synchronizeScheduledGames();
   renderNavigation();
   clearQuestSummary();
-  if (state.activeGame === 'kards') kardsRules();
   $('#resetScheduleInfo').textContent =
     state.activeGame === 'overview'
       ? '한국 시간(KST)'
       : catalogEnabled(state.activeGame)
-        ? [...new Set(catalogRules(data()).map(ruleScheduleText))].join(' · ') || '한국 시간(KST)'
+        ? [...new Set(catalogRules(data()).map(r => ruleScheduleText(data(), r)))].join(' · ') || '한국 시간(KST)'
         : scheduleLabel(state.activeGame);
   let toolbar = $('#gameToolbar');
   if (!toolbar) {
@@ -30,7 +29,7 @@ function renderManaged() {
     p = data().profile;
   if (!p.registeredAt) {
     $('#questList').innerHTML =
-      '<div class="setup-empty"><h3>최초 설정</h3><p>현재 진행도와 이미 받은 보상을 등록하세요.</p><button id="beginSetup">설정 시작</button></div>';
+      '<div class="setup-empty"><h3>최초 설정</h3><p>이 게임에 추가할 항목을 설정하세요.</p><button id="beginSetup">설정 시작</button></div>';
     $('#beginSetup').addEventListener('click', () => openCustomSetup(id));
     save();
     return true;
@@ -46,7 +45,7 @@ function renderManaged() {
   if (id === 'kards' || catalogEnabled(id)) {
     const button = document.createElement('button');
     button.id = 'editKardsRules';
-    button.textContent = '퀘스트·보상 규칙';
+    button.textContent = '항목 규칙';
     button.addEventListener('click', () => openCatalogEditor(id));
     toolbar.appendChild(button);
   }

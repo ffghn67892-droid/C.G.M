@@ -200,31 +200,27 @@ function completeCatalogRule(gameId, ruleId, missionId, rewardId, expectedPeriod
     period: expectedPeriod
   });
 }
-function updateCatalog(gameId, rules, options = {}) {
+// Edits a game's rule list in place: re-clamps every surviving rule's progress to its
+// (possibly changed) capacity/range, and drops progress + undo history for removed rules.
+// Kind changes are rejected outright (the wizard adds a new rule instead).
+function updateCatalog(gameId, rules) {
   validateRuleCatalog(rules);
   return runCatalogAction(gameId, g => {
     syncCatalog(g);
-    const old = catalogRules(g),
-      adapter = catalogAdapter(g);
-    if (options.bonusActive !== undefined) {
-      setCatalogBonus(g, !!options.bonusActive);
-    }
-    // Snapshot the old schedule before installing the edited catalog.
-    const states = new Map(old.map(r => [r.id, adapter.state(r)]));
+    const old = catalogRules(g);
     g.ruleCatalog = structuredClone(rules);
+    g.ruleProgress ||= {};
     for (const r of g.ruleCatalog) {
       const before = old.find(x => x.id === r.id);
-      if (before && before.type !== r.type)
-        throw Error('기존 규칙의 유형은 바꿀 수 없습니다. 새 규칙을 추가하세요.');
-      if (before && JSON.stringify(before.schedule) !== JSON.stringify(r.schedule)) {
-        const p = states.get(r.id),
-          period = rulePeriod(r);
-        p.resetPeriod = period;
-        p.period = period;
-        p.generalDate = String(period);
-        adapter.flush?.(r, p);
-      }
+      if (before && before.kind !== r.kind)
+        throw Error('기존 규칙의 형태는 바꿀 수 없습니다. 새 규칙을 추가하세요.');
+      const p = ruleProgress(g, r);
+      if (r.kind === 'slot') p.held = Math.min(p.held, r.maxHeld);
+      else p.value = Math.min(Math.max(p.value, r.min), r.max);
     }
+    const kept = new Set(g.ruleCatalog.map(r => r.id));
+    for (const id of Object.keys(g.ruleProgress)) if (!kept.has(id)) delete g.ruleProgress[id];
+    g.actionHistory = (g.actionHistory || []).filter(entry => kept.has(entry.ruleId));
     syncCatalog(g);
     return true;
   });

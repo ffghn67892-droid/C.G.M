@@ -186,33 +186,57 @@ Track 1이 새로 구현할 `catalog-engine.js`의 공개 함수/데이터 모�
   // kind:'gauge'
   value: number,                 // r.min <= value <= r.max, 항상 clamp
   foldTarget: number | null,     // 개인 목표 (Stage K2 foldTarget 재사용)
-  collapsed: boolean | undefined,// 수동 펼침/접힘 오버라이드
-  achievedMilestones: number[],  // 이번 주기에 도달한 마일스톤 값들 (2.3-2, 사라지지 않음)
+  achievedMilestones: number[],  // 이번 주기에 도달한 마일스톤 값들 (2.3-2, sticky — undo로도 안 지워짐)
   // format:'fixed'
   ended: boolean                 // endDate가 지났는지 (2.3-1 "종료됨" 표시용)
 }
 ```
+**(구현 확정, 2026-09-19) `collapsed` 필드는 최종적으로 두지 않는다** — K2의 "접혀서 한 줄 요약"은 이번 압축 카드 설계(7절)에서 아예 다른 방식(카드 자체가 이미 작아서, 개인 목표 도달 시엔 "달성" 표시만 얹고 카드는 그대로 유지)으로 대체됐으므로 별도 펼침/접힘 상태가 필요 없다.
+
+### 게임 메타데이터 (규칙이 아닌 게임 객체 최상위 필드, `state.games[id]`)
+
+```js
+resetSchedule: { dailyTime: 'HH:MM', weeklyDay: 0-6 },  // 3절의 게임 기본 리셋값, 게임 생성 시 필수 입력
+pass: null | { active: boolean, purchaseDate: 'YYYY-MM-DD', endDate: 'YYYY-MM-DD', level: number },
+actionHistory: [{ ruleId, kind: 'slot'|'gauge', delta: number, at: number }, ...]  // 최근 20개
+```
+`pass`는 구매 안 함/건너뛰기 시 `null`. `level`은 `'bump-pass-level'` 액션으로만 오르는 수동 카운터(2.3-4).
+
+### 규칙별 리셋 재지정 — `ruleResetSchedule(g, r)` / `rulePeriod(g, r, now)`
+
+`r.resetOverride`가 있으면 그 값(`{time}` 또는 `{weekday,time}`)을 쓰고, 없으면 `g.resetSchedule`을 그대로 쓴다(2.3-3). `format:'fixed'`는 이 함수들의 대상이 아니며 `rulePeriod`는 `null`을 반환한다 — 대신 `r.startDate`/`r.endDate`로 직접 판단한다.
 
 ### 동작 — `catalogAction(gameId, ruleId, action, payload)`
 
 | action | 대상 | 동작 |
 |---|---|---|
-| `'complete'` | slot | `held -= 1` (0 미만 방지), 실행취소 기록에 push |
-| `'increment'` | gauge | `value += 1` (max clamp), 실행취소 기록에 push |
-| `'undo'` | 무관 | `state.games[id].actionHistory`의 마지막 항목을 꺼내 반대로 적용 |
-| `'manual-add'` / `'manual-remove'` | slot | 상세 설정 화면 전용(2.3-10). maxHeld clamp 동일 적용 |
-| `'delete-rule'` | format:'fixed' & ended | 규칙 자체를 제거 (2.3-1 삭제 버튼) |
-| `'bump-pass-level'` | 게임 메타데이터 | `state.games[id].pass.level += 1` (수동, 2.3-4) |
+| `'complete'` | slot | `held -= 1` (0 이하 방지), 실행취소 기록에 push |
+| `'increment'` | gauge | `value += 1` (max clamp), 마일스톤 판정, 실행취소 기록에 push |
+| `'undo'` | 무관(`ruleId`는 무시하고 기록의 마지막 항목만 봄) | `actionHistory`의 마지막 항목을 꺼내 반대로 적용 |
+| `'manual-add'` / `'manual-remove'` | slot | 상세 설정 화면 전용(2.3-10). maxHeld/0 clamp 동일 적용 |
+| `'set-fold-target'` | gauge | `payload.value`로 `foldTarget` 설정, `null`이면 해제 |
+| `'delete-rule'` | format:'fixed' & `ended===true`인 경우만 | 규칙 자체와 그 진행도를 제거 (2.3-1 삭제 버튼) |
+| `'bump-pass-level'` | 게임 메타데이터(`ruleId`는 무시, 빈 문자열로 호출) | `g.pass.level += 1` (수동, 2.3-4). `g.pass`가 `null`이면 실패 |
+
+`format:'fixed'`인 규칙은 `r.startDate`가 아직 안 지났으면(`ruleStarted`) 어떤 액션도 거부된다 — Track 2는 이 경우 버튼을 `disabled`로 미리 막고, 여기서도 한 번 더 막는다.
 
 ### 상태 — `universalStatus(g)` 반환값
 
 ```js
-{ color: 'urgent'|'warning'|'pending'|'done', label, count }
+{ color: 'urgent'|'pending'|'done', label, count }
 ```
-`count`는 "실제로 남은 일"의 개수다 — slot은 `held > 0`인 규칙 수, gauge는 `value < max`(진짜 목표 기준, `foldTarget`은 절대 참조하지 않음, 2.3-9)인 규칙 수를 합산한다.
+`count`는 "실제로 남은 일"의 개수다 — slot은 `held > 0`인 규칙 수, gauge는 `value < max`(진짜 목표 기준, `foldTarget`은 절대 참조하지 않음, 2.3-9)인 규칙 수를 합산한다. `urgent`는 최대 보유 수에 도달한 slot 규칙이 하나라도 있을 때(다음 리셋에서 갱신분을 놓칠 위험). 기존 `warning` 단계는 이번 모델에서는 두지 않았다(6개 타입 시절의 임계값 로직이 사라졌기 때문 — 필요하면 추후 추가 가능).
 
 ### 주기 처리 — `syncUniversalCatalog(g, now)`
 
-리셋 시점에: slot은 `held = min(held + refillCount, maxHeld)`, gauge는 `value = min`으로 초기화하고 `achievedMilestones`·`collapsed`를 비운다(K2 원칙 계승). `foldTarget`은 절대 건드리지 않는다. `format:'fixed'`는 리셋 대상이 아니며, `endDate` 경과 시 `ended = true`로만 표시한다(삭제는 사용자 조작으로만).
+리셋 시점에: slot은 `held = min(held + refillCount, maxHeld)`(리셋마다 누적, 0으로 초기화하지 않음), gauge는 `value = min`으로 초기화하고 `achievedMilestones`를 비운다. `foldTarget`은 절대 건드리지 않는다. `format:'fixed'`는 리셋 대상이 아니며, `endDate` 경과 시 `ended = true`로만 표시한다(삭제는 사용자 조작으로만).
 
-**실행취소 기록**: `state.games[id].actionHistory`에 최근 N개(예: 20개)의 `{ ruleId, kind, delta, at }`를 쌓는 배열. Track 2는 이 배열을 읽어 "실행취소" UI(예: 최근 몇 개를 순서대로 되돌리는 목록)를 그리고, 되돌릴 항목을 고르면 `catalogAction(id, ruleId, 'undo')`를 호출한다. 배열 자체의 관리(push/pop, 길이 제한)는 Track 1(엔진)이 전담한다.
+### 규칙 편집 저장 — `updateCatalog(gameId, rules)`
+
+기존 `validateRuleCatalog`/`updateCatalog`/`runCatalogAction` 공개 함수 이름은 그대로 유지했다(Track 2가 이미 이 이름으로 저장 흐름을 짜뒀음). `updateCatalog`는 저장 시: (1) `kind`가 바뀌는 편집은 거부, (2) 남아있는 모든 규칙의 진행도를 새 용량/범위로 다시 clamp(`held`는 `maxHeld` 이하로, `value`는 `[min,max]` 안으로), (3) 삭제된 규칙의 진행도와 `actionHistory` 항목을 정리한다.
+
+**실행취소 기록**: `state.games[id].actionHistory`에 최근 20개의 `{ ruleId, kind, delta, at }`를 쌓는 배열. Track 2는 이 배열을 읽어 "실행취소" UI(최근 몇 개를 순서대로 되돌리는 목록)를 그리고, 되돌릴 항목을 고르면 `catalogAction(id, ruleId, 'undo')`를 호출한다(어떤 `ruleId`를 넘기든 실제로는 기록의 마지막 항목만 되돌아간다). 배열 자체의 관리(push/pop, 길이 제한, 편집 시 정리)는 Track 1(엔진)이 전담한다.
+
+---
+
+**통합 확인(2026-09-19): 위 계약은 확정본이다.** Track 1이 실제로 `catalog-engine.js`를 구현했고, Track 2가 이미 작성해 둔 `catalog-view.js`/`catalog-editor.js`/`setup.js`와 실제 harness(브라우저 아님, node:test용 DOM 어댑터)를 통해 카드 렌더링·클릭 완료/증가·되돌리기·지정 기간 종료/삭제·패스 레벨 수동 증가까지 end-to-end로 맞물려 동작하는 것을 확인했다. `manager.js`/`alerts.js`/`refresh-scheduler.js`/`overview.js`(둘 다 원래 소유 트랙 없음)의 옛 시그니처 호출부도 이번에 같이 맞췄다 — 자세한 내용은 GPT_TRACK2_STATUS.md의 "Claude 확인 사항"을 참고.
