@@ -1,143 +1,165 @@
-function newUniversalRule(type = 'quest') {
-  const r = newCatalogRule(type);
-  r.label = '새 ' + CATALOG_TYPES[type];
-  if (!['quest', 'claim'].includes(type)) {
-    r.rewards = [];
-    r.quests = [];
-    r.target = 15;
-    r.steps = [];
-  }
-  if (type === 'resource') {
-    r.capacity = 2;
-    r.intervalMinutes = 720;
-    r.recoverAmount = 1;
-    r.consumeRewards = {};
-  }
-  if (type === 'pass' || type === 'counter') r.schedule.kind = 'once';
-  return r;
-}
-function initializeCatalogRewards(id) {
-  const g = state.games[id];
-  for (const r of catalogRules(g)) {
-    const p = ruleProgress(g, r);
-    for (const [rewardId, n] of Object.entries(r.initialReceived || {})) {
-      if (!Number.isInteger(n) || n < 0 || n > 100) throw Error('기수령 횟수를 확인하세요.');
-      const reward = r.rewards.find(x => x.id === rewardId);
-      if (!reward && n) throw Error('보상 종류를 확인하세요.');
-      for (let i = 0; i < n; i++) {
-        if (r.paidOnly && !g.profile.pass.active)
-          throw Error('유료 보상의 최초 기록은 유료 활성 후 가능합니다.');
-        let m = null;
-        if (r.type === 'quest') {
-          const q = r.quests.find(
-            q =>
-              q.rewardIds.includes(rewardId) &&
-              (!r.unique || !p.missions.some(m => m.templateId === q.id))
-          );
-          if (!q || p.missions.length >= r.capacity)
-            throw Error('남은 퀘스트와 기수령 퀘스트의 합계 또는 종류를 확인하세요.');
-          m = catalogMission({ ...r, quests: [q] });
-          m.done = true;
-          m.rewardReceived = structuredClone(reward.resources);
-          p.missions.push(m);
-          p.completed.push(m.id);
-        } else if (r.type !== 'claim' || catalogDone(g, r))
-          throw Error('기수령 횟수가 수령 상한을 초과합니다.');
-        const count = p.claimed || 0;
-        award(
-          id,
-          catalogAdapter(g).key(r, m, rulePeriod(r), count),
-          reward.resources,
-          r.label,
-          true
-        );
-        recordCatalogExpense(g, r);
-        if (!m) {
-          p.claimed = count + 1;
-          p.monthCount = (p.monthCount || 0) + 1;
-        }
-        catalogAdapter(g).flush?.(r, p);
-        catalogEmit(id, r, 'complete', { points: m?.points || 0 }, true);
-        if (m && r.removeCompleted) p.missions = p.missions.filter(x => x !== m);
-      }
-    }
-    delete r.initialReceived;
-  }
-}
-function initializeCatalogProgress(id) {
-  const g = state.games[id];
-  for (const r of catalogRules(g)) {
-    const p = ruleProgress(g, r);
-    if (r.type === 'quest' && r.initialCount !== undefined) {
-      if (!Number.isInteger(r.initialCount) || r.initialCount < 0 || r.initialCount > r.capacity)
-        throw Error('최초 퀘스트 수를 확인하세요.');
-      p.missions = [];
-      catalogSpawn(r, p, r.initialCount);
-    }
-    if (['goal', 'pass', 'counter', 'resource'].includes(r.type) && r.initialValue !== undefined) {
-      if (
-        !Number.isSafeInteger(r.initialValue) ||
-        r.initialValue < 0 ||
-        r.initialValue > (r.type === 'resource' ? r.capacity : r.target)
-      )
-        throw Error('최초 진행도를 확인하세요.');
-      p.value = r.initialValue;
-      if (r.type === 'pass') g.profile.pass.level = p.value;
-      if (r.profileXp) g.profile.pass.xp = p.value;
-      if (r.type !== 'resource') catalogAwardSteps(id, r, p, true);
-    }
-    delete r.initialCount;
-    delete r.initialValue;
-  }
-}
-function catalogProfileFields() {
-  return (
-    '<div class="form-grid">' +
-    field(
-      'registered',
-      '등록일',
-      new Date(Date.now() + 9 * HOUR_MS).toISOString().slice(0, 10),
-      0,
-      'date'
-    ) +
-    '<label class="check-field"><input id="initialPaid" type="checkbox" />유료 / 추가 공급 활성</label></div>'
+function newUniversalRule(kind = 'slot') {
+  const rule = {
+    id: 'rule-' + crypto.randomUUID(),
+    name: '새 항목',
+    format: 'daily',
+    resetOverride: null,
+    kind: kind === 'gauge' ? 'gauge' : 'slot'
+  };
+  return Object.assign(
+    rule,
+    rule.kind === 'slot' ? { refillCount: 1, maxHeld: 3 } : { min: 0, max: 15, milestones: [] }
   );
 }
-function readCatalogProfile() {
-  const date = document.querySelector('[data-field="registered"]').value,
-    at = date + 'T00:00:00+09:00';
+function initializeCatalogProgress(id) {
+  for (const rule of catalogRules(state.games[id])) ruleProgress(state.games[id], rule);
+}
+// Kept while older setup callers are transitioned; new entries have no initial awards.
+function initializeCatalogRewards() {}
+function trackerDateValid(date) {
+  return (
+    /^\d{4}-\d{2}-\d{2}$/.test(date) &&
+    Number.isFinite(Date.parse(date)) &&
+    new Date(date).toISOString().slice(0, 10) === date
+  );
+}
+function validateTrackerRule(rule) {
+  if (!rule.name.trim() || rule.name.length > 60) throw Error('이름은 1~60자로 입력하세요.');
+  if (!['daily', 'weekly', 'fixed'].includes(rule.format)) throw Error('포맷을 선택하세요.');
   if (
-    !/^\d{4}-\d{2}-\d{2}$/.test(date) ||
-    !Number.isFinite(Date.parse(at)) ||
-    Date.parse(at) > Date.now() ||
-    new Date(date).toISOString().slice(0, 10) !== date
+    rule.format === 'fixed' &&
+    (!trackerDateValid(rule.startDate) ||
+      !trackerDateValid(rule.endDate) ||
+      rule.endDate < rule.startDate)
   )
-    throw Error('등록일을 확인하세요.');
-  return { registeredAt: at, paid: document.querySelector('#initialPaid').checked };
+    throw Error('시작일과 종료일을 확인하세요.');
+  if (
+    rule.resetOverride &&
+    (!/^([01]\d|2[0-3]):[0-5]\d$/.test(rule.resetOverride.time) ||
+      (rule.format === 'weekly' &&
+        (!Number.isInteger(rule.resetOverride.weekday) ||
+          rule.resetOverride.weekday < 0 ||
+          rule.resetOverride.weekday > 6)))
+  )
+    throw Error('리셋 시각과 요일을 확인하세요.');
+  if (rule.kind === 'slot') {
+    if (![rule.refillCount, rule.maxHeld].every(n => Number.isSafeInteger(n) && n > 0))
+      throw Error('갱신 수와 최대 보유 수는 1 이상의 정수로 입력하세요.');
+  } else if (rule.kind === 'gauge') {
+    if (![rule.min, rule.max].every(Number.isSafeInteger) || rule.min < 0 || rule.max <= rule.min)
+      throw Error('최소값은 0 이상, 목표값은 최소값보다 큰 정수여야 합니다.');
+    if (!rule.milestones.every(n => Number.isSafeInteger(n) && n > rule.min && n <= rule.max))
+      throw Error('마일스톤은 최소값보다 크고 목표값 이하인 정수로 입력하세요.');
+  } else throw Error('형태를 선택하세요.');
+  return rule;
+}
+function openRuleDetails(id, ruleId) {
+  const game = state.games[id],
+    rule = catalogRules(game).find(r => r.id === ruleId);
+  if (!rule) return;
+  const progress = ruleProgress(game, rule);
+  openDialog(
+    '항목 상세 설정',
+    `<h3>${escapeHtml(rule.name)}</h3>${rule.kind === 'slot' ? `<p>남은 수 <strong>${progress.held}</strong> / ${rule.maxHeld}</p><div class="rule-nav"><button id="detailManualAdd" ${progress.held >= rule.maxHeld ? 'disabled' : ''}>1개 추가</button><button id="detailManualRemove" ${progress.held <= 0 ? 'disabled' : ''}>1개 제거</button></div>` : `<p>현재 ${progress.value} / ${rule.max}</p><label>개인 목표 (비워두면 사용 안 함)<input id="detailFoldTarget" type="number" min="${rule.min}" max="${rule.max}" step="1" value="${progress.foldTarget ?? ''}" /></label><p class="wizard-help">개인 목표에 도달하면 달성으로 표시합니다. 항목은 전체 목표에 도달할 때 사라집니다.</p><button id="saveFoldTarget">개인 목표 저장</button>`}<p id="detailError" role="status"></p><button id="detailBack">게임 설정으로</button>`
+  );
+  for (const [button, action] of [
+    ['#detailManualAdd', 'manual-add'],
+    ['#detailManualRemove', 'manual-remove']
+  ])
+    $(button)?.addEventListener('click', () => {
+      try {
+        catalogAction(id, ruleId, action);
+        renderAll();
+        openRuleDetails(id, ruleId);
+      } catch (error) {
+        $('#detailError').textContent = error.message;
+      }
+    });
+  $('#saveFoldTarget')?.addEventListener('click', () => {
+    try {
+      const raw = $('#detailFoldTarget').value.trim(),
+        target = raw === '' ? null : Number(raw);
+      if (
+        target !== null &&
+        (!Number.isSafeInteger(target) || target < rule.min || target > rule.max)
+      )
+        throw Error('개인 목표는 최소값 이상, 전체 목표 이하인 정수로 입력하세요.');
+      runCatalogAction(id, g => {
+        const p = ruleProgress(g, rule);
+        p.foldTarget = target;
+        delete p.collapsed;
+        return true;
+      });
+      renderAll();
+      openRuleDetails(id, ruleId);
+    } catch (error) {
+      $('#detailError').textContent = error.message;
+    }
+  });
+  $('#detailBack').addEventListener('click', () => openUniversalSettings(id));
 }
 function openUniversalSettings(id) {
   const g = state.games[id],
-    p = g.profile;
+    reset = g.resetSchedule || { dailyTime: '09:00', weeklyDay: 3 },
+    pass = g.pass;
   openDialog(
     '게임 설정',
-    `<div class="form-grid"><label class="check-field"><input id="universalPaid" type="checkbox" ${p.pass.active ? 'checked' : ''} />유료 / 추가 공급 활성</label>${field('catalogPassEnd', '패스 종료 KST', p.pass.end ? new Date(Date.parse(p.pass.end) + 9 * HOUR_MS).toISOString().slice(0, 16) : '', 0, 'datetime-local')}<label class="check-field"><input id="resetAlert" type="checkbox" ${p.alerts.reset ? 'checked' : ''} />갱신 알림</label><label class="check-field"><input id="fullAlert" type="checkbox" ${p.alerts.full ? 'checked' : ''} />충전 완료 알림</label></div><button id="saveUniversalSettings">설정 저장</button><button id="editUniversalRules">규칙 구성</button><h3>현금 지출</h3><div class="form-grid">${field('amount', '금액', 0, 100000000)}${field('currency', '통화', 'KRW', 0, 'text')}${field('item', '항목', '', 0, 'text')}</div><button id="recordUniversalSpending">지출 기록</button><p>${escapeHtml(spendingText(p))}</p><button id="resetUniversalGame">이 게임 전체 초기화</button>`
+    `<div class="form-grid"><label>일일 리셋 시각 (KST)<input id="trackerResetTime" type="time" value="${escapeHtml(reset.dailyTime)}" /></label><label>주간 리셋 요일<select id="trackerResetWeekday">${['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'].map((day, i) => `<option value="${i}" ${i === reset.weeklyDay ? 'selected' : ''}>${day}</option>`).join('')}</select></label><label class="check-field"><input id="trackerPassActive" type="checkbox" ${pass?.active ? 'checked' : ''} />패스 사용</label></div><div id="trackerPassDates" class="form-grid" ${pass?.active ? '' : 'hidden'}><label>구매일<input id="trackerPassPurchase" type="date" value="${escapeHtml(pass?.purchaseDate || '')}" /></label><label>종료일<input id="trackerPassEnd" type="date" value="${escapeHtml(pass?.endDate || '')}" /></label></div><button id="saveUniversalSettings">설정 저장</button><p id="trackerSettingsError" role="status"></p><h3>항목 상세 설정</h3><p class="wizard-help">슬롯 수량과 개인 목표를 조정합니다. 완료한 항목도 여기서 관리할 수 있습니다.</p><div class="rule-nav">${catalogRules(
+      g
+    )
+      .map((r, i) => `<button data-rule-detail="${i}">${escapeHtml(r.name)}</button>`)
+      .join(
+        ''
+      )}</div><button id="editUniversalRules">규칙 구성</button><h3>알림</h3><label class="check-field"><input id="resetAlert" type="checkbox" ${g.profile?.alerts?.reset ? 'checked' : ''} />갱신 알림</label><label class="check-field"><input id="fullAlert" type="checkbox" ${g.profile?.alerts?.full ? 'checked' : ''} />보유 상한 알림</label><h3>현금 지출</h3><div class="form-grid">${field('amount', '금액', 0, 100000000)}${field('currency', '통화', 'KRW', 0, 'text')}${field('item', '항목', '', 0, 'text')}</div><button id="recordUniversalSpending">지출 기록</button><p>${escapeHtml(spendingText(g.profile))}</p><button id="resetUniversalGame" class="danger">이 게임 전체 초기화</button>`
   );
+  $('#trackerPassActive').addEventListener('change', () => {
+    $('#trackerPassDates').hidden = !$('#trackerPassActive').checked;
+  });
+  document
+    .querySelectorAll('[data-rule-detail]')
+    .forEach(button =>
+      button.addEventListener('click', () =>
+        openRuleDetails(id, catalogRules(state.games[id])[Number(button.dataset.ruleDetail)].id)
+      )
+    );
   $('#editUniversalRules').addEventListener('click', () => openCatalogEditor(id));
   $('#saveUniversalSettings').addEventListener('click', () => {
     try {
-      const v = values();
-      runCatalogAction(id, g => {
-        setCatalogBonus(g, $('#universalPaid').checked);
-        g.profile.pass.end = v.catalogPassEnd ? v.catalogPassEnd + '+09:00' : '';
-        g.profile.alerts = { reset: $('#resetAlert').checked, full: $('#fullAlert').checked };
-        for (const r of catalogRules(g).filter(x => x.type === 'pass'))
-          if (catalogActive(g, r)) catalogAwardSteps(id, r, ruleProgress(g, r));
+      const time = $('#trackerResetTime').value,
+        weekday = Number($('#trackerResetWeekday').value),
+        active = $('#trackerPassActive').checked,
+        purchaseDate = $('#trackerPassPurchase').value,
+        endDate = $('#trackerPassEnd').value;
+      if (
+        !/^([01]\d|2[0-3]):[0-5]\d$/.test(time) ||
+        !Number.isInteger(weekday) ||
+        weekday < 0 ||
+        weekday > 6
+      )
+        throw Error('리셋 시각과 요일을 확인하세요.');
+      if (
+        active &&
+        ((purchaseDate && !trackerDateValid(purchaseDate)) ||
+          (endDate && !trackerDateValid(endDate)) ||
+          (purchaseDate && endDate && endDate < purchaseDate))
+      )
+        throw Error('패스 구매일과 종료일을 확인하세요.');
+      runCatalogAction(id, game => {
+        game.resetSchedule = { dailyTime: time, weeklyDay: weekday };
+        game.pass = active
+          ? { active: true, purchaseDate, endDate, level: game.pass?.level || 0 }
+          : null;
+        game.profile.alerts = {
+          ...game.profile.alerts,
+          reset: $('#resetAlert').checked,
+          full: $('#fullAlert').checked
+        };
         return true;
       });
       closeDialog();
       renderAll();
-    } catch (e) {
-      toast(e.message);
+    } catch (error) {
+      $('#trackerSettingsError').textContent = error.message;
     }
   });
   $('#recordUniversalSpending').addEventListener('click', () => {
@@ -145,8 +167,8 @@ function openUniversalSettings(id) {
       const v = values();
       if (v.amount <= 0 || !/^[A-Z]{3}$/.test(v.currency))
         throw Error('금액과 통화 코드를 확인하세요.');
-      runCatalogAction(id, g => {
-        g.profile.spending.push({
+      runCatalogAction(id, game => {
+        game.profile.spending.push({
           id: crypto.randomUUID(),
           amount: v.amount,
           currency: v.currency,
@@ -157,397 +179,201 @@ function openUniversalSettings(id) {
         return true;
       });
       openUniversalSettings(id);
-    } catch (e) {
-      toast(e.message);
+    } catch (error) {
+      $('#trackerSettingsError').textContent = error.message;
     }
   });
   $('#resetUniversalGame').addEventListener('click', () => {
     openDialog(
       '게임 전체 초기화',
-      '<p>진행도와 규칙, 보상 및 지출 기록을 모두 삭제합니다.</p><button id="confirmUniversalReset">초기화</button>'
+      '<p>이 게임의 항목, 진행도, 패스, 게임 설정과 지출 기록을 모두 삭제합니다.</p><button id="confirmUniversalReset" class="danger">초기화</button>'
     );
     $('#confirmUniversalReset').addEventListener('click', () => {
-      resetGame(id);
-      closeDialog();
-      renderAll();
-      openCustomSetup(id);
+      try {
+        resetGame(id);
+        closeDialog();
+        renderAll();
+        openCustomSetup(id);
+      } catch (error) {
+        toast(error.message);
+      }
     });
   });
 }
-const RULE_TYPE_HELP = {
-  quest:
-    '갱신될 때마다 여러 개의 할 일이 새로 생기고, 각각 완료하면 보상을 받습니다. 예: 하루 3개씩 나오는 일일 임무.',
-  claim:
-    '할 일 없이 정해진 주기마다 버튼 하나로 보상을 받습니다. 예: 매일 접속 시 받는 출석 보상.',
-  goal: '정해진 값까지 진행도를 쌓으면 목표 지점마다 보상을 받습니다. 예: 승리 15회 달성 시 보상.',
-  resource: '시간이 지나면 자동으로 채워지는 자원입니다. 예: 30분마다 1개씩 회복되는 티켓.',
-  pass: '레벨처럼 진행도가 쌓일 때마다 여러 단계의 보상을 순서대로 받습니다. 예: 시즌 패스 레벨업 보상.',
-  counter: '완료할 때마다 횟수만 누적해서 기록합니다. 보상 없이 진행 상황만 추적할 때 씁니다.'
-};
-const RULE_STEP_META = {
-  basic: { title: '기본 정보', help: '이 항목의 이름과 사용 여부를 정합니다.' },
-  schedule: { title: '갱신 주기', help: '언제, 얼마나 자주 초기화되고 새로 생성되는지 정합니다.' },
-  limits: { title: '생성·상한', help: '한 번에 몇 개까지 생성되고 유지되는지 정합니다.' },
-  rewards: { title: '보상', help: '완료·수령 시 어떤 재화를 얼마나 받을지 정합니다.' },
-  steps: { title: '구간 보상', help: '진행도가 특정 값에 도달할 때마다 받을 보상을 정합니다.' },
-  quests: {
-    title: '퀘스트 목록',
-    help: '실제로 화면에 나열될 개별 할 일과, 각각 어떤 보상을 받을지 정합니다.'
-  },
-  advanced: {
-    title: '고급 설정',
-    help: '화면 표시, 다른 항목과의 연동, 선행 조건 등 필요할 때만 쓰는 설정입니다. 건너뛰어도 됩니다.'
-  },
-  review: { title: '확인', help: '지금까지 입력한 내용을 확인하고 저장합니다.' }
-};
-const RULE_SCHEDULE_HELP = {
-  daily: '매일 같은 시각에 갱신됩니다.',
-  weekly: '매주 지정한 요일의 지정한 시각에 갱신됩니다.',
-  intervalDays: '기준 날짜로부터 며칠 간격으로 갱신됩니다.',
-  slots: '하루에 지정한 여러 시각마다 갱신됩니다.',
-  monthly: '매월 1일 지정한 시각에 갱신됩니다.',
-  once: '별도 갱신 없이 정해진 기간 동안 유지됩니다.'
-};
 function mountUniversalEditor(initial, parent, initialSetup = false) {
   const draft = structuredClone(initial);
-  let selected = 0;
-  // Reopening rules that already exist starts at the review step; a brand new rule starts at step 0.
-  let step = initial.length ? Infinity : 0;
+  let selected = 0,
+    step = initial.length ? 4 : 0;
   const host = document.createElement('section');
   host.className = 'rule-editor';
   parent.appendChild(host);
   const input = (key, label, value, type = 'text') =>
-    `<label>${label}<input data-rule-field="${key}" type="${type}" value="${escapeHtml(value ?? '')}" /></label>`;
+    `<label>${label}<input data-rule-field="${key}" type="${type}" value="${escapeHtml(value ?? '')}" ${type === 'number' ? 'step="1"' : ''} /></label>`;
   const select = (key, label, value, options) =>
-    `<label>${label}<select data-rule-field="${key}">${options.map(([k, n]) => `<option value="${k}" ${String(k) === String(value) ? 'selected' : ''}>${escapeHtml(n)}</option>`).join('')}</select></label>`;
-  const check = (key, label, on) =>
-    `<label class="check-field"><input type="checkbox" data-rule-field="${key}" ${on ? 'checked' : ''} />${label}</label>`;
-  const bundle = b =>
-    Object.entries(b || {})
-      .map(([k, n]) => `${REWARD_NAMES[k] || k}:${n}`)
-      .join(', ');
-  function parseBundle(value) {
-    const out = {};
-    for (const part of value
-      .split(',')
-      .map(x => x.trim())
-      .filter(Boolean)) {
-      const i = part.lastIndexOf(':'),
-        label = part.slice(0, i).trim(),
-        n = Number(part.slice(i + 1));
-      if (i < 1 || !Number.isSafeInteger(n) || n < 0) throw Error('재화:수량 형식으로 입력하세요.');
-      const key = Object.keys(REWARD_NAMES).find(k => REWARD_NAMES[k] === label) || label;
-      if (['__proto__', 'constructor', 'prototype'].includes(key))
-        throw Error('재화 이름을 확인하세요.');
-      out[key] = n;
-    }
-    return out;
-  }
+    `<label>${label}<select data-rule-field="${key}">${options.map(([k, n]) => `<option value="${k}" ${String(k) === String(value) ? 'selected' : ''}>${n}</option>`).join('')}</select></label>`;
   function capture() {
     const r = draft[selected];
     if (!r) return;
-    const el = k => host.querySelector(`[data-rule-field="${k}"]`),
-      get = k => el(k)?.value,
-      number = k => Number(get(k));
-    r.label = get('label');
-    r.schedule = {
-      kind: get('kind'),
-      time: get('time'),
-      weekday: number('weekday'),
-      days: number('days'),
-      anchor: get('anchor'),
-      times: get('times')
-        .split(',')
-        .map(x => x.trim())
-        .filter(Boolean)
-    };
-    for (const k of ['spawnCount', 'capacity', 'passExtra']) r[k] = number(k);
-    for (const k of [
-      'enabled',
-      'unique',
-      'replace',
-      'removeCompleted',
-      'chooseType',
-      'hideCompleted',
-      'hideAction',
-      'paidOnly'
-    ])
-      r[k] = !!el(k)?.checked;
-    r.span = number('span') || 1;
-    r.columns = number('columns') || 1;
-    r.note = get('note');
-    if (number('expenseAmount'))
-      r.expense = { currency: get('expenseCurrency'), amount: number('expenseAmount') };
-    else delete r.expense;
-    r.attention = get('attention');
-    r.page = get('page');
-    r.event = get('event');
-    r.eventLabel = get('eventLabel');
-    r.start = get('start') ? get('start') + '+09:00' : '';
-    r.end = get('end') ? get('end') + '+09:00' : '';
-    r.stopAt = get('stopAt') || undefined;
-    r.requires = [...host.querySelectorAll('[data-requires]')]
-      .filter(x => x.checked)
-      .map(x => x.value);
-    for (const k of ['monthlyLimit', 'completionLimit']) {
-      if (number(k)) r[k] = number(k);
-      else delete r[k];
+    const el = key => host.querySelector(`[data-rule-field="${key}"]`);
+    if (el('name')) r.name = el('name').value.trim();
+    if (el('format')) r.format = el('format').value;
+    if (el('startDate')) {
+      r.startDate = el('startDate').value;
+      r.endDate = el('endDate').value;
     }
-    if (['goal', 'pass', 'counter'].includes(r.type)) {
-      r.target = number('target');
-      r.steps.forEach((x, i) => {
-        x.at = number('stepAt' + i);
-        x.free = parseBundle(get('stepFree' + i));
-        x.paid = parseBundle(get('stepPaid' + i));
-      });
-      if (number('repeatFrom'))
-        r.repeat = {
-          from: number('repeatFrom'),
-          every: number('repeatEvery'),
-          free: parseBundle(get('repeatFree')),
-          paid: parseBundle(get('repeatPaid'))
-        };
-      else delete r.repeat;
+    if (r.format !== 'fixed') {
+      delete r.startDate;
+      delete r.endDate;
     }
-    if (r.type === 'resource') {
-      r.intervalMinutes = number('intervalMinutes');
-      r.recoverAmount = number('recoverAmount');
-      r.consumeRewards = parseBundle(get('consumeRewards'));
-      r.consumeLabel = get('consumeLabel');
-    }
-    r.rewards.forEach((x, i) => {
-      x.label = get('rewardLabel' + i);
-      x.resources = parseBundle(get('resources' + i));
-      if (initialSetup) {
-        r.initialReceived ||= {};
-        r.initialReceived[x.id] = number('received' + i);
+    if (el('kind') && r.kind !== el('kind').value) {
+      r.kind = el('kind').value;
+      if (r.kind === 'slot') {
+        delete r.min;
+        delete r.max;
+        delete r.milestones;
+        r.refillCount = 1;
+        r.maxHeld = 3;
+      } else {
+        delete r.refillCount;
+        delete r.maxHeld;
+        r.min = 0;
+        r.max = 15;
+        r.milestones = [];
       }
-    });
-    r.quests.forEach((q, i) => {
-      q.label = get('questLabel' + i);
-      q.points = number('questPoints' + i);
-      q.rewardIds = [...host.querySelectorAll(`[data-quest-reward="${i}"]`)]
-        .filter(x => x.checked)
-        .map(x => x.value);
-    });
-    r.links = (r.links || []).map((l, i) => ({
-      target: get('linkTarget' + i),
-      event: get('linkEvent' + i),
-      value: get('linkValue' + i)
-    }));
-    if (initialSetup) {
-      r.initialValue = number('initialValue');
-      r.initialCount = number('initialCount');
     }
+    for (const key of ['refillCount', 'maxHeld', 'min', 'max'])
+      if (el(key)) r[key] = el(key).value.trim() ? Number(el(key).value) : NaN;
+    if (el('milestones'))
+      r.milestones = [
+        ...new Set(
+          el('milestones')
+            .value.split(',')
+            .map(v => v.trim())
+            .filter(Boolean)
+            .map(Number)
+        )
+      ].sort((a, b) => a - b);
+    if (el('override'))
+      r.resetOverride = el('override').checked
+        ? {
+            time: el('resetTime')?.value || r.resetOverride?.time || '09:00',
+            ...(r.format === 'weekly'
+              ? { weekday: Number(el('weekday')?.value ?? r.resetOverride?.weekday ?? 0) }
+              : {})
+          }
+        : null;
+    if (r.format === 'fixed') r.resetOverride = null;
   }
   function edit(fn) {
     try {
       capture();
       fn();
       render();
-    } catch (e) {
-      host.querySelector('[data-rule-error]').textContent = e.message;
+    } catch (error) {
+      host.querySelector('[data-rule-error]').textContent = error.message;
     }
   }
   function render() {
-    const r = draft[selected],
-      addCompact = Object.entries(CATALOG_TYPES)
-        .map(([k, v]) => `<button data-add-rule="${k}" data-new-empty="${k}">${v} 추가</button>`)
-        .join(''),
-      addWithHelp = Object.entries(CATALOG_TYPES)
-        .map(
-          ([k, v]) =>
-            `<div class="rule-type-choice"><button data-add-rule="${k}" data-new-empty="${k}">${v} 추가</button><p class="wizard-help">${escapeHtml(RULE_TYPE_HELP[k])}</p></div>`
-        )
-        .join('');
+    const r = draft[selected];
     if (!r) {
-      host.innerHTML = `<h3>규칙 구성</h3><p class="wizard-help">추가할 요소의 종류를 고르세요. 각 유형이 무엇을 위한 것인지는 아래 설명을 참고하세요.</p><div class="rule-type-grid">${addWithHelp}</div><p data-rule-error="true"></p>`;
-      host.querySelectorAll('[data-add-rule]').forEach(b =>
-        b.addEventListener('click', () => {
-          draft.push(newUniversalRule(b.dataset.addRule));
-          selected = draft.length - 1;
-          step = 0;
-          render();
-        })
-      );
+      host.innerHTML =
+        '<h3>규칙 구성</h3><p class="wizard-help">항목 이름, 포맷, 형태를 차례로 입력합니다.</p><button id="addTrackerRule">항목 추가</button><p data-rule-error role="status"></p>';
+      host.querySelector('#addTrackerRule').addEventListener('click', () => {
+        draft.push(newUniversalRule());
+        selected = draft.length - 1;
+        step = 0;
+        render();
+      });
       return;
     }
-    r.steps ||= [];
-    r.links ||= [];
-    r.quests ||= [];
-    const others = draft.filter(x => x !== r).map(x => [x.id, x.label]),
-      date = v => (v ? new Date(Date.parse(v) + 9 * HOUR_MS).toISOString().slice(0, 16) : '');
-    const stepKeys = ['basic', 'schedule', 'limits'];
-    if (['quest', 'claim'].includes(r.type)) stepKeys.push('rewards');
-    if (['goal', 'pass', 'counter'].includes(r.type)) stepKeys.push('steps');
-    if (r.type === 'quest') stepKeys.push('quests');
-    stepKeys.push('advanced', 'review');
-    step = Math.min(step, stepKeys.length - 1);
-    const on = key => (stepKeys[step] === key ? '' : 'hidden');
-    host.innerHTML = `<h3>규칙 구성 · ${CATALOG_TYPES[r.type]}</h3><div class="rule-nav">${draft.map((x, i) => `<button data-edit-rule="${i}" aria-pressed="${selected === i}">${escapeHtml(x.label)}</button>`).join('')}</div><div class="rule-nav">${addCompact}<button id="copyRule">규칙 복제</button><button id="moveRuleUp">앞으로 이동</button><button id="moveRuleDown">뒤로 이동</button><button id="removeRule" class="danger">이 규칙 삭제</button></div>
-   <p class="wizard-progress">${step + 1} / ${stepKeys.length} · ${RULE_STEP_META[stepKeys[step]].title}</p>
-   <p class="wizard-help">${escapeHtml(RULE_STEP_META[stepKeys[step]].help)}</p>
-   <section ${on('basic')}><div class="form-grid">${input('label', '이름', r.label)}${check('enabled', '활성', r.enabled !== false)}</div></section>
-   <section ${on('schedule')}><div class="form-grid">${select('kind', '갱신 주기', r.schedule.kind, [
-     ['daily', '매일'],
-     ['weekly', '매주'],
-     ['intervalDays', 'N일마다'],
-     ['slots', '하루 여러 시각'],
-     ['monthly', '매월'],
-     ['once', '기간 내 유지']
-   ])}${input('time', '갱신 시각', r.schedule.time, 'time')}</div><p class="wizard-help">${escapeHtml(RULE_SCHEDULE_HELP[r.schedule.kind] || '')}</p><div class="form-grid">${
-     r.schedule.kind === 'weekly'
-       ? select(
-           'weekday',
-           '요일',
-           r.schedule.weekday || 0,
-           ['일', '월', '화', '수', '목', '금', '토'].map((x, i) => [i, x])
-         )
-       : ''
-   }${
-     r.schedule.kind === 'intervalDays'
-       ? input('days', 'N일 간격', r.schedule.days || 1, 'number') +
-         input('anchor', '기준 날짜', r.schedule.anchor || '2026-01-01', 'date')
-       : ''
-   }${
-     r.schedule.kind === 'slots'
-       ? input(
-           'times',
-           '여러 시각 (쉼표 구분)',
-           (r.schedule.times || ['04:00', '12:00', '20:00']).join(', ')
-         )
-       : ''
-   }</div>${
-     r.schedule.kind !== 'weekly'
-       ? `<div hidden>${select('weekday', '', r.schedule.weekday || 0, ['일', '월', '화', '수', '목', '금', '토'].map((x, i) => [i, x]))}</div>`
-       : ''
-   }${
-     r.schedule.kind !== 'intervalDays'
-       ? `<div hidden>${input('days', '', r.schedule.days || 1, 'number')}${input('anchor', '', r.schedule.anchor || '2026-01-01', 'date')}</div>`
-       : ''
-   }${r.schedule.kind !== 'slots' ? `<div hidden>${input('times', '', (r.schedule.times || ['04:00', '12:00', '20:00']).join(', '))}</div>` : ''}</section>
-   <section ${on('limits')}>${
-     r.type === 'resource'
-       ? `<div class="form-grid">${input('capacity', '최대 보유량', r.capacity, 'number')}${input('intervalMinutes', '회복 간격 (분)', r.intervalMinutes, 'number')}${input('recoverAmount', '회복 수량', r.recoverAmount, 'number')}${input('consumeLabel', '사용 버튼 이름', r.consumeLabel || '1개 사용')}${input('consumeRewards', '사용 시 기록할 재화:수량', bundle(r.consumeRewards))}</div><div hidden>${input('spawnCount', '', r.spawnCount, 'number')}${input('passExtra', '', r.passExtra, 'number')}${check('paidOnly', '', r.paidOnly)}</div>`
-       : ['goal', 'pass', 'counter'].includes(r.type)
-         ? `<div class="form-grid">${input('target', '목표 상한', r.target, 'number')}</div><div hidden>${input('spawnCount', '', r.spawnCount, 'number')}${input('capacity', '', r.capacity, 'number')}${input('passExtra', '', r.passExtra, 'number')}${check('paidOnly', '', r.paidOnly)}</div>`
-         : `<div class="form-grid">${input('spawnCount', '갱신 시 생성 / 수령 수', r.spawnCount, 'number')}${input('capacity', '보관 상한', r.capacity, 'number')}${input('passExtra', '추가 공급 활성 시 추가 수', r.passExtra, 'number')}${check('paidOnly', '유료 활성 시 사용', r.paidOnly)}</div>${
-             r.type === 'quest'
-               ? `<div class="form-grid">${check('unique', '같은 종류 중복 금지', r.unique)}${check('chooseType', '퀘스트 종류 선택 허용', r.chooseType)}${check('replace', '갱신 시 전체 교체', r.replace)}${check('removeCompleted', '완료 즉시 제거', r.removeCompleted)}${input('completionLimit', '필요 완료 수 (0이면 전체)', r.completionLimit || 0, 'number')}</div>`
-               : `<div hidden>${check('unique', '', false)}${check('chooseType', '', false)}${check('replace', '', false)}${check('removeCompleted', '', false)}${input('completionLimit', '', 0, 'number')}</div>`
-           }${
-             r.type === 'claim'
-               ? `<div class="form-grid">${input('monthlyLimit', '월간 수령 상한 (0이면 없음)', r.monthlyLimit || 0, 'number')}</div>`
-               : `<div hidden>${input('monthlyLimit', '', r.monthlyLimit || 0, 'number')}</div>`
-           }`
-   }</section>
-   <section ${on('rewards')}>${r.rewards.map((x, i) => `<div class="form-grid">${input('rewardLabel' + i, '보상 이름', x.label)}${input('resources' + i, '재화:수량 (쉼표 구분)', bundle(x.resources))}${initialSetup ? input('received' + i, '기수령 횟수', r.initialReceived?.[x.id] || 0, 'number') : ''}<button data-remove-reward="${i}">보상 삭제</button></div>`).join('')}<button id="addRuleReward">보상 추가</button></section>
-   <section ${on('steps')}>${r.steps.map((s, i) => `<div class="form-grid">${input('stepAt' + i, '도달값', s.at, 'number')}${input('stepFree' + i, '무료 재화:수량', bundle(s.free))}${input('stepPaid' + i, '유료 재화:수량', bundle(s.paid))}<button data-remove-step="${i}">구간 삭제</button></div>`).join('')}<button id="addStep">구간 추가</button><details><summary>반복 구간</summary><div class="form-grid">${input('repeatFrom', '반복 시작 (0이면 없음)', r.repeat?.from || 0, 'number')}${input('repeatEvery', '반복 간격', r.repeat?.every || 1, 'number')}${input('repeatFree', '무료 보상', bundle(r.repeat?.free))}${input('repeatPaid', '유료 보상', bundle(r.repeat?.paid))}</div></details></section>
-   <section ${on('quests')}>${r.quests.map((q, i) => `<fieldset>${input('questLabel' + i, '퀘스트 내용', q.label)}${input('questPoints' + i, '연동할 포인트', q.points || 0, 'number')}${r.rewards.map(x => `<label class="check-field"><input type="checkbox" data-quest-reward="${i}" value="${x.id}" ${q.rewardIds.includes(x.id) ? 'checked' : ''} />${escapeHtml(x.label)}</label>`).join('')}<button data-remove-quest="${i}">종류 삭제</button></fieldset>`).join('')}<button id="addRuleQuest">퀘스트 종류 추가</button></section>
-   <section ${on('advanced')}>
-     <div class="form-grid">${input('page', '페이지 그룹 (비워두면 항상 표시)', r.page)}${select('span', '카드 너비', r.span || 1, [[1, '1칸'], [2, '2칸'], [3, '3칸']])}${select('columns', '퀘스트 목록 열 수', r.columns || 1, [[1, '1열'], [2, '2열'], [3, '3열']])}${input('note', '메모', r.note)}${select('attention', '알림 중요도', r.attention || 'normal', [['normal', '일반'], ['urgent', '오늘 확인'], ['warning', '진행 권장'], ['none', '별도 알림 없음']])}</div>
-     <div class="form-grid">${input('start', '시작 KST', date(r.start), 'datetime-local')}${input('end', '종료 KST', date(r.end), 'datetime-local')}</div>
-     <div class="form-grid">${check('hideCompleted', '수령 완료 시 숨김', r.hideCompleted)}${check('hideAction', '직접 진행 버튼 숨김', r.hideAction)}${input('event', '공동 진행 이름 (같은 이름끼리 함께 증가)', r.event)}${input('eventLabel', '진행 버튼 이름', r.eventLabel)}${select('stopAt', '대상 달성 시 이 항목 종료', r.stopAt || '', [['', '없음'], ...others])}</div>
-     <details><summary>구매 기록 설정</summary><div class="form-grid">${input('expenseCurrency', '소비 재화 ID', r.expense?.currency || 'gems')}${input('expenseAmount', '소비 수량 (0이면 구매 기록 안 함)', r.expense?.amount || 0, 'number')}</div></details>
-     <details><summary>선행 완료 조건</summary>${others.map(([id, label]) => `<label class="check-field"><input data-requires="true" type="checkbox" value="${id}" ${(r.requires || []).includes(id) ? 'checked' : ''} />${escapeHtml(label)}</label>`).join('')}</details>
-     <details><summary>다른 항목과 연동</summary>${r.links
-       .map(
-         (l, i) =>
-           `<div class="form-grid">${select('linkTarget' + i, '대상', l.target, others)}${select(
-             'linkEvent' + i,
-             '발생 동작',
-             l.event,
-             [
-               ['complete', '완료 / 수령'],
-               ['progress', '진행'],
-               ['consume', '자원 사용']
-             ]
-           )}${select('linkValue' + i, '증가량', l.value, [
-             ['one', '1'],
-             ['points', '퀘스트 포인트'],
-             ['amount', '진행 증가량'],
-             ['date', '서로 다른 활동 날짜']
-           ])}<button data-remove-link="${i}">연동 삭제</button></div>`
-       )
-       .join('')}<button id="addLink">연동 추가</button></details>
-     ${initialSetup ? `<h4>최초 진행도</h4><div class="form-grid">${input('initialValue', '기존 목표 진행도 / 남은 자원 (기수령 연동분 제외)', r.initialValue ?? (r.type === 'resource' ? r.capacity : 0), 'number')}${input('initialCount', '남은 퀘스트 수', r.initialCount ?? r.spawnCount, 'number')}</div>` : ''}
-   </section>
-   <section ${on('review')}><p>이름: ${escapeHtml(r.label)} · 유형: ${escapeHtml(CATALOG_TYPES[r.type])} · 갱신: ${escapeHtml(RULE_SCHEDULE_HELP[r.schedule.kind] || '')}</p><p class="wizard-help">이전 단계로 돌아가 값을 바꿀 수 있습니다. 문제가 없다면 저장하세요.</p></section>
-   <div class="wizard-nav">${step > 0 ? '<button id="wizardPrev">이전</button>' : ''}${step < stepKeys.length - 1 ? '<button id="wizardNext">다음</button><button id="wizardSkip">건너뛰고 확인</button>' : ''}</div>
-   <p data-rule-error="true" role="status"></p>`;
+    const names = ['이름', '포맷', '형태', '세부값', '확인'];
+    let body = '';
+    if (step === 0) body = input('name', '항목 이름', r.name);
+    if (step === 1)
+      body =
+        select('format', '포맷', r.format, [
+          ['daily', '일일'],
+          ['weekly', '주간'],
+          ['fixed', '지정 기간']
+        ]) +
+        (r.format === 'fixed'
+          ? input('startDate', '시작일 (KST)', r.startDate, 'date') +
+            input('endDate', '종료일 (KST)', r.endDate, 'date')
+          : '<p class="wizard-help">게임의 기본 리셋 시각을 따릅니다.</p>');
+    if (step === 2)
+      body =
+        select('kind', '형태', r.kind, [
+          ['slot', '슬롯형'],
+          ['gauge', '게이지형']
+        ]) +
+        '<p class="wizard-help">슬롯형은 남은 수를 하나씩 완료합니다. 게이지형은 클릭할 때마다 1씩 증가합니다.</p>';
+    if (step === 3) {
+      body =
+        r.kind === 'slot'
+          ? input('refillCount', '갱신 수', r.refillCount, 'number') +
+            input('maxHeld', '최대 보유 수', r.maxHeld, 'number') +
+            '<p class="wizard-help">생성 직후에는 0개입니다. 상세 설정에서 수동으로 추가할 수 있습니다.</p>'
+          : input('min', '최소값', r.min, 'number') +
+            input('max', '목표값', r.max, 'number') +
+            input('milestones', '마일스톤 (선택 · 쉼표로 구분)', (r.milestones || []).join(', '));
+      if (r.format !== 'fixed')
+        body += `<label class="check-field"><input data-rule-field="override" type="checkbox" ${r.resetOverride ? 'checked' : ''} />이 항목만 리셋 시각을 게임 기본값과 다르게</label>${
+          r.resetOverride
+            ? input('resetTime', '리셋 시각 (KST)', r.resetOverride.time, 'time') +
+              (r.format === 'weekly'
+                ? select(
+                    'weekday',
+                    '리셋 요일',
+                    r.resetOverride.weekday ?? 0,
+                    ['일', '월', '화', '수', '목', '금', '토'].map((d, i) => [i, d + '요일'])
+                  )
+                : '')
+            : ''
+        }`;
+    }
+    if (step === 4)
+      body = `<p>${escapeHtml(r.name)} · ${{ daily: '일일', weekly: '주간', fixed: '지정 기간' }[r.format]} · ${r.kind === 'slot' ? '슬롯형' : '게이지형'}</p><p>${r.kind === 'slot' ? `갱신 ${r.refillCount}개 · 최대 ${r.maxHeld}개` : `${r.min} → ${r.max} · 마일스톤 ${(r.milestones || []).join(', ') || '없음'}`}</p>${r.format === 'fixed' ? `<p>${escapeHtml(r.startDate || '')} ~ ${escapeHtml(r.endDate || '')}</p>` : `<p>리셋: ${r.resetOverride ? escapeHtml(r.resetOverride.time) : '게임 기본값'}</p>`}<p class="wizard-help">규칙 저장 버튼을 누르면 적용됩니다.</p>`;
+    host.innerHTML = `<h3>규칙 구성</h3><div class="rule-nav">${draft.map((x, i) => `<button data-edit-rule="${i}" aria-pressed="${selected === i}">${escapeHtml(x.name)}</button>`).join('')}<button id="addTrackerRule">항목 추가</button></div><p class="wizard-progress">${step + 1} / 5 · ${names[step]}</p><div class="form-grid">${body}</div><div class="wizard-nav">${step > 0 ? '<button id="wizardPrev">이전</button>' : ''}${step < 4 ? '<button id="wizardNext">다음</button>' : '<button id="editRuleStart">항목 수정</button>'}<button id="removeRule" class="danger">항목 삭제</button></div><p data-rule-error role="status"></p>`;
     const bind = (selector, fn) =>
       host
         .querySelectorAll(selector)
-        .forEach(b => b.addEventListener('click', () => edit(() => fn(b))));
-    bind('[data-edit-rule]', b => {
-      selected = Number(b.dataset.editRule);
-      step = Infinity;
-    });
-    bind('[data-add-rule]', b => {
-      draft.push(newUniversalRule(b.dataset.addRule));
+        .forEach(button => button.addEventListener('click', () => edit(() => fn(button))));
+    bind('#addTrackerRule', () => {
+      draft.push(newUniversalRule());
       selected = draft.length - 1;
       step = 0;
     });
-    bind('#copyRule', () => {
-      draft.push(cloneCatalog([r])[0]);
-      selected = draft.length - 1;
-      step = Infinity;
+    bind('[data-edit-rule]', button => {
+      selected = Number(button.dataset.editRule);
+      step = 4;
     });
     bind('#wizardPrev', () => step--);
-    bind('#wizardNext', () => step++);
-    bind('#wizardSkip', () => (step = stepKeys.length - 1));
-    bind('#moveRuleUp', () => {
-      if (selected) {
-        [draft[selected - 1], draft[selected]] = [draft[selected], draft[selected - 1]];
-        selected--;
-      }
-    });
-    bind('#moveRuleDown', () => {
-      if (selected < draft.length - 1) {
-        [draft[selected], draft[selected + 1]] = [draft[selected + 1], draft[selected]];
-        selected++;
-      }
-    });
-    bind('#removeRule', () => {
+    bind('#wizardNext', () => {
+      if (step === 0 && (!r.name || r.name.length > 60)) throw Error('이름은 1~60자로 입력하세요.');
       if (
-        draft.some(
-          x =>
-            x !== r &&
-            ((x.links || []).some(l => l.target === r.id) ||
-              x.stopAt === r.id ||
-              (x.requires || []).includes(r.id))
-        )
+        step === 1 &&
+        r.format === 'fixed' &&
+        (!trackerDateValid(r.startDate) || !trackerDateValid(r.endDate) || r.endDate < r.startDate)
       )
-        throw Error('이 항목을 참조하는 연동과 조건을 먼저 해제하세요.');
+        throw Error('시작일과 종료일을 확인하세요.');
+      if (step === 3) validateTrackerRule(r);
+      step++;
+    });
+    bind('#editRuleStart', () => (step = 0));
+    bind('#removeRule', () => {
       draft.splice(selected, 1);
-      selected = 0;
-      step = Infinity;
+      selected = Math.max(0, selected - 1);
+      step = 4;
     });
-    bind('#addRuleReward', () =>
-      r.rewards.push({ id: 'r-' + crypto.randomUUID(), label: '보상', resources: { gold: 50 } })
-    );
-    bind('[data-remove-reward]', b => {
-      const [x] = r.rewards.splice(Number(b.dataset.removeReward), 1);
-      r.quests.forEach(q => (q.rewardIds = q.rewardIds.filter(id => id !== x.id)));
-    });
-    bind('#addRuleQuest', () =>
-      r.quests.push({
-        id: 'q-' + crypto.randomUUID(),
-        label: '퀘스트',
-        rewardIds: r.rewards.map(x => x.id)
-      })
-    );
-    bind('[data-remove-quest]', b => r.quests.splice(Number(b.dataset.removeQuest), 1));
-    bind('#addStep', () => r.steps.push({ at: (r.steps.at(-1)?.at || 0) + 1, free: {}, paid: {} }));
-    bind('[data-remove-step]', b => r.steps.splice(Number(b.dataset.removeStep), 1));
-    bind('#addLink', () =>
-      r.links.push({ target: others[0]?.[0] || '', event: 'complete', value: 'one' })
-    );
-    bind('[data-remove-link]', b => r.links.splice(Number(b.dataset.removeLink), 1));
+    for (const key of ['format', 'kind', 'override'])
+      host
+        .querySelector(`[data-rule-field="${key}"]`)
+        ?.addEventListener('change', () => edit(() => {}));
   }
   render();
   return () => {
     capture();
-    return structuredClone(validateRuleCatalog(draft));
+    draft.forEach(validateTrackerRule);
+    return structuredClone(draft);
   };
 }

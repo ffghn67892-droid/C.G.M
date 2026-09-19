@@ -138,3 +138,25 @@ button:disabled { opacity: 0.45; cursor: default !important; }
 .catalog-mission > div:first-child { flex: 1 1 auto; min-width: 0; }
 .catalog-mission > .catalog-actions { flex: 0 0 auto; margin: 0; }
 .catalog-mission .catalog-actions { display: flex; flex-wrap: wrap; }
+
+/* Slot/gauge tracker: each active card is one native keyboard-accessible button. */
+.tracker-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; align-items: stretch; }
+.tracker-card { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 8px; min-width: 0; min-height: 132px; padding: 18px; text-align: left; white-space: normal; border: 1px solid rgb(76, 91, 69); border-radius: 12px; background: rgb(30, 39, 29); color: inherit; }
+button.tracker-card:hover { border-color: var(--lime); background: rgb(43, 55, 34); }
+.tracker-card:focus-visible, .tracker-history button:focus-visible, .tracker-pass:focus-visible { outline: 2px solid var(--lime); outline-offset: 3px; }
+.tracker-name { font-size: 14px; font-weight: 650; overflow-wrap: anywhere; }
+.tracker-number { font-size: 32px; line-height: 1.1; color: var(--lime); font-variant-numeric: tabular-nums; }
+.tracker-number small { font-size: 16px; color: var(--muted); }
+.tracker-caption { font-size: 12px; color: var(--muted); }
+.tracker-achieved { font-size: 12px; color: var(--lime); }
+.tracker-milestones { display: flex; flex-wrap: wrap; gap: 5px; }
+.tracker-milestone { padding: 3px 6px; font-size: 11px; border-radius: 5px; background: rgb(45, 52, 44); color: var(--muted); }
+.tracker-milestone.achieved { color: var(--lime); background: rgb(53, 70, 38); }
+.tracker-ended { border-style: dashed; }
+.tracker-ended .tracker-number { color: var(--muted); }
+.tracker-history { margin-bottom: 16px; display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-start; font-size: 12px; }
+.tracker-history details { padding: 8px; color: var(--muted); }
+.tracker-history li { padding: 3px 0; }
+.tracker-empty { color: var(--muted); padding: 24px 0; line-height: 1.7; }
+.tracker-pass { display: flex; align-items: center; flex-wrap: wrap; gap: 14px; margin-top: 18px; padding: 12px 18px; }
+.tracker-pass strong { font-size: 22px; color: var(--lime); }

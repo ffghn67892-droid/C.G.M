@@ -45,15 +45,14 @@ function mountRuleEditor(...args) {
 }
 function openCatalogEditor(gameId) {
   const g = state.games[gameId];
-  if (gameId === 'kards') kardsRules(g);
   openDialog(
     '규칙 구성',
-    `<label class="check-field"><input type="checkbox" id="catalogBonusActive" ${g.profile.pass.active ? 'checked' : ''} />추가 공급 활성</label><div id="catalogMount"></div><button id="saveRuleCatalog">규칙 저장</button><p id="ruleSaveResult" role="status"></p>${isCustomGame(gameId) ? '<button id="resetCustomGame">이 게임 초기화</button>' : ''}`
+    `<div id="catalogMount"></div><button id="saveRuleCatalog">규칙 저장</button><p id="ruleSaveResult" role="status"></p>${isCustomGame(gameId) ? '<button id="resetCustomGame">이 게임 초기화</button>' : ''}`
   );
   const read = mountRuleEditor(catalogRules(g), $('#catalogMount'));
   $('#saveRuleCatalog').addEventListener('click', () => {
     try {
-      updateCatalog(gameId, read(), { bonusActive: $('#catalogBonusActive').checked });
+      updateCatalog(gameId, read());
     } catch (e) {
       $('#ruleSaveResult').textContent = e.message;
       return;
@@ -64,7 +63,7 @@ function openCatalogEditor(gameId) {
   $('#resetCustomGame')?.addEventListener('click', () => {
     openDialog(
       '게임 초기화',
-      '<p>이 게임의 규칙, 진행도와 보상 기록을 삭제하고 최초 설정으로 돌아갑니다.</p><button id="confirmCustomReset">초기화</button>'
+      '<p>이 게임의 규칙과 진행도를 삭제하고 최초 설정으로 돌아갑니다.</p><button id="confirmCustomReset">초기화</button>'
     );
     $('#confirmCustomReset').addEventListener('click', () => {
       try {
@@ -79,34 +78,39 @@ function openCatalogEditor(gameId) {
   });
 }
 function cloneCatalog(rules) {
-  const events = new Map(
-    rules.filter(r => r.event).map(r => [r.event, 'event-' + crypto.randomUUID()])
-  );
-  const copy = structuredClone(rules),
-    ruleIds = new Map(copy.map(r => [r.id, 'rule-' + crypto.randomUUID()]));
-  for (const r of copy) {
-    r.id = ruleIds.get(r.id);
-    r.source = 'user';
-    if (r.event) r.event = events.get(r.event);
-    delete r.controls;
-    delete r.initialReceived;
-    delete r.initialValue;
-    delete r.initialCount;
-    const ids = new Map();
-    for (const x of r.rewards) {
-      const old = x.id;
-      x.id = 'reward-' + crypto.randomUUID();
-      ids.set(old, x.id);
+  return structuredClone(rules).map(r => ({ ...r, id: 'rule-' + crypto.randomUUID() }));
+}
+function validateSetupOptions(options = {}) {
+  const reset = options.reset || { time: '09:00', weekday: 3 };
+  if (
+    !/^([01]\d|2[0-3]):[0-5]\d$/.test(reset.time) ||
+    !Number.isInteger(reset.weekday) ||
+    reset.weekday < 0 ||
+    reset.weekday > 6
+  )
+    throw Error('리셋 시각과 요일을 확인하세요.');
+  const pass = options.pass?.active
+    ? {
+        active: true,
+        purchaseDate: options.pass.purchaseDate || '',
+        endDate: options.pass.endDate || '',
+        level: 0
+      }
+    : null;
+  if (pass) {
+    for (const value of [pass.purchaseDate, pass.endDate]) {
+      if (
+        value &&
+        (!/^\d{4}-\d{2}-\d{2}$/.test(value) ||
+          !Number.isFinite(Date.parse(value)) ||
+          new Date(value).toISOString().slice(0, 10) !== value)
+      )
+        throw Error('패스 날짜를 확인하세요.');
     }
-    for (const q of r.quests || []) {
-      q.id = 'quest-' + crypto.randomUUID();
-      q.rewardIds = q.rewardIds.map(id => ids.get(id));
-    }
-    for (const l of r.links || []) l.target = ruleIds.get(l.target) || l.target;
-    if (r.stopAt) r.stopAt = ruleIds.get(r.stopAt) || r.stopAt;
-    r.requires = (r.requires || []).map(id => ruleIds.get(id) || id);
+    if (pass.purchaseDate && pass.endDate && pass.purchaseDate > pass.endDate)
+      throw Error('패스 종료일은 구매일 이후여야 합니다.');
   }
-  return copy;
+  return { reset: { time: reset.time, weekday: reset.weekday }, pass };
 }
 function createCustomGame(name, rules, existingId, profileOptions = {}) {
   if (
@@ -114,35 +118,45 @@ function createCustomGame(name, rules, existingId, profileOptions = {}) {
     ((!isCustomGame(existingId) &&
       !CATALOG_PRESETS.includes(existingId) &&
       existingId !== 'kards') ||
-      state.games[existingId].profile.registeredAt)
+      !state.games[existingId] ||
+      state.games[existingId].profile?.registeredAt)
   )
     throw Error('최초 설정 대상이 아닙니다.');
   name = name.trim();
   if (!name || name.length > 60) throw Error('게임 이름은 1~60자로 입력하세요.');
+  const options = validateSetupOptions(profileOptions);
   validateRuleCatalog(rules);
   const id = existingId || 'game-' + crypto.randomUUID(),
     g = freshGame();
   g.ruleCatalog = structuredClone(rules);
-  g.catalogVersion = 1;
+  g.catalogVersion = 2;
+  g.profile ||= {};
   g.profile.registeredAt = new Date().toISOString();
-  if (profileOptions.registeredAt) g.profile.registeredAt = profileOptions.registeredAt;
-  g.profile.pass.active = !!profileOptions.paid;
-  g.profile.pass.end = g.ruleCatalog.find(r => r.type === 'pass')?.end || '';
+  // Track 1 integration contract: game reset defaults and optional pass metadata.
+  g.resetSchedule = {
+    dailyTime: options.reset.time,
+    weeklyDay: options.reset.weekday
+  };
+  g.pass = options.pass;
+  g.ruleProgress = {};
+  g.actionHistory = [];
   const before = structuredClone(state);
   try {
     state.games[id] = g;
     state.customGames ||= [];
     if (!GAMES.some(x => x[0] === id) && !state.customGames.some(x => x[0] === id))
       state.customGames.push([id, name, '◇', 'lime']);
-    else if (isCustomGame(id)) state.customGames.find(x => x[0] === id)[1] = name;
-    else {
+    else if (isCustomGame(id)) {
+      const index = state.customGames.findIndex(x => x[0] === id);
+      // GAMES may share this entry; keep its displayed name unchanged until save succeeds.
+      const entry = [...state.customGames[index]];
+      entry[1] = name;
+      state.customGames[index] = entry;
+    } else {
       state.gameNames ||= {};
       state.gameNames[id] = name;
     }
-    catalogAdapter(g).setBonus?.(g.profile.pass.active);
-    syncCatalog(g);
-    initializeCatalogProgress(id);
-    initializeCatalogRewards(id);
+    syncUniversalCatalog(g, new Date());
     state.activeGame = id;
     save();
   } catch (e) {
@@ -154,83 +168,69 @@ function createCustomGame(name, rules, existingId, profileOptions = {}) {
   else GAMES.find(x => x[0] === id)[1] = name;
   return id;
 }
-// Step 1: name + starting point. Nothing else is shown yet (sequential, not all-at-once).
-function openCustomSetup(existingId) {
-  const isBuiltinTarget =
-    existingId && (existingId === 'kards' || CATALOG_PRESETS.includes(existingId));
+function openCustomSetup(existingId, draft = {}) {
   openDialog(
-    '새 게임 만들기',
-    `<p class="wizard-help">먼저 이름을 정하고 시작 방식을 고르세요. 다음 화면에서 세부 내용을 하나씩 입력합니다.</p><div class="form-grid"><label>게임 이름<input id="customGameName" value="${escapeHtml(GAMES.find(x => x[0] === existingId)?.[1] || '')}" /></label><label>시작 구성<select id="catalogPreset"><option value="empty">빈 구성 — 요소를 하나씩 직접 추가합니다</option><option value="preset">KARDS 기본 구성</option>${CATALOG_PRESETS.map(id => `<option value="builtin:${id}">${escapeHtml(GAMES.find(x => x[0] === id)[1])} 기본 구성</option>`).join('')}${GAMES.filter(
-      ([id]) => state.games[id]?.ruleCatalog?.length
-    )
-      .map(([id, name]) => `<option value="${id}">${escapeHtml(name)}의 규칙 복사</option>`)
-      .join(
-        ''
-      )}</select></label></div><p id="customGameError" role="status"></p><button id="customSetupNext">다음</button>`
+    '새 게임 만들기 — 이름',
+    `<p class="wizard-help">1 / 3 · 게임 이름을 입력하세요.</p><label>게임 이름<input id="customGameName" maxlength="60" value="${escapeHtml(draft.name ?? GAMES.find(x => x[0] === existingId)?.[1] ?? '')}" /></label><p id="customGameError" role="status"></p><button id="customSetupNext">다음</button>`
   );
-  if (isBuiltinTarget)
-    $('#catalogPreset').value = existingId === 'kards' ? 'preset' : 'builtin:' + existingId;
   $('#customSetupNext').addEventListener('click', () => {
     const name = $('#customGameName').value.trim();
     if (!name || name.length > 60) {
       $('#customGameError').textContent = '게임 이름은 1~60자로 입력하세요.';
       return;
     }
-    const choice = $('#catalogPreset').value,
-      isPreset = choice === 'preset' || choice.startsWith('builtin:'),
-      targetId = choice === 'preset' ? 'kards' : choice.startsWith('builtin:') ? choice.slice(8) : existingId,
-      loadRules = () =>
-        choice === 'empty'
-          ? []
-          : isPreset
-            ? choice === 'preset'
-              ? defaultKardsRules()
-              : presetCatalog(choice.slice(8))
-            : cloneCatalog(catalogRules(state.games[choice]));
-    isPreset
-      ? openPresetChoiceStep(name, targetId, loadRules)
-      : openRuleEditorStep(name, loadRules(), targetId);
+    openGameResetStep(existingId, { ...draft, name });
   });
 }
-// Step 2 (preset only): start the preset as-is, or review/customize it in the editor.
-function openPresetChoiceStep(name, targetId, loadRules) {
-  const opened = new Date();
+function openGameResetStep(existingId, draft) {
+  const reset = draft.reset || { time: '09:00', weekday: 3 };
   openDialog(
-    '새 게임 만들기 — ' + escapeHtml(name),
-    `<p class="wizard-help">기본 구성 그대로 시작하거나, 다음 화면에서 직접 손볼 수 있습니다.</p>${catalogProfileFields()}<button id="startPresetAsIs">이대로 시작</button><button id="editPresetFirst">직접 편집</button><p id="customGameError" role="status"></p>`
+    '새 게임 만들기 — 리셋 일정',
+    `<p class="wizard-help">2 / 3 · 일일·주간 항목에 적용할 기본 일정을 정하세요. 시각은 한국 표준시(KST) 기준입니다.</p><div class="form-grid"><label>일일 리셋 시각<input type="time" id="gameResetTime" value="${escapeHtml(reset.time)}" /></label><label>주간 리셋 요일<select id="gameResetWeekday">${['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'].map((day, i) => `<option value="${i}" ${i === reset.weekday ? 'selected' : ''}>${day}</option>`).join('')}</select></label></div><p class="wizard-help">주간 리셋도 위 시각을 사용합니다. 항목별로 다른 일정을 지정할 수 있습니다.</p><p id="customGameError" role="status"></p><button id="customSetupBack">이전</button><button id="customSetupNext">다음</button>`
   );
-  $('#startPresetAsIs').addEventListener('click', () => {
+  const readReset = () => ({
+    time: $('#gameResetTime').value,
+    weekday: Number($('#gameResetWeekday').value)
+  });
+  $('#customSetupBack').addEventListener('click', () =>
+    openCustomSetup(existingId, { ...draft, reset: readReset() })
+  );
+  $('#customSetupNext').addEventListener('click', () => {
     try {
-      const rules = loadRules();
-      if (rules.some(r => rulePeriod(r, opened) !== rulePeriod(r)))
-        throw Error('갱신 시각이 지났습니다. 닫은 후 다시 설정하세요.');
-      createCustomGame(name, rules, targetId, readCatalogProfile());
+      const { reset } = validateSetupOptions({ reset: readReset() });
+      openGamePassStep(existingId, { ...draft, reset });
+    } catch (e) {
+      $('#customGameError').textContent = e.message;
+    }
+  });
+}
+function openGamePassStep(existingId, draft) {
+  const pass = draft.pass || { active: false, purchaseDate: '', endDate: '' };
+  openDialog(
+    '새 게임 만들기 — 패스',
+    `<p class="wizard-help">3 / 3 · 패스 아이템을 구매했나요?</p><label>패스 구매 여부<select id="gamePassActive"><option value="no" ${!pass.active ? 'selected' : ''}>아니오</option><option value="yes" ${pass.active ? 'selected' : ''}>예</option></select></label><div id="gamePassDates" ${pass.active ? '' : 'hidden'}><p class="wizard-help">날짜는 비워 두고 시작할 수 있습니다. 레벨은 게임 화면에서 직접 올립니다.</p><div class="form-grid"><label>구매일 (선택)<input type="date" id="gamePassPurchaseDate" value="${escapeHtml(pass.purchaseDate)}" /></label><label>종료일 (선택)<input type="date" id="gamePassEndDate" value="${escapeHtml(pass.endDate)}" /></label></div></div><p id="customGameError" role="status"></p><button id="customSetupBack">이전</button><button id="skipGamePass">패스 건너뛰기</button><button id="createCustomGame">완료</button>`
+  );
+  const readPass = () => ({
+    active: $('#gamePassActive').value === 'yes',
+    purchaseDate: $('#gamePassPurchaseDate').value,
+    endDate: $('#gamePassEndDate').value
+  });
+  $('#gamePassActive').addEventListener('change', () => {
+    $('#gamePassDates').hidden = $('#gamePassActive').value !== 'yes';
+  });
+  $('#customSetupBack').addEventListener('click', () =>
+    openGameResetStep(existingId, { ...draft, pass: readPass() })
+  );
+  const finish = pass => {
+    try {
+      createCustomGame(draft.name, [], existingId, { reset: draft.reset, pass });
     } catch (e) {
       $('#customGameError').textContent = e.message;
       return;
     }
     closeDialog();
     renderAll();
-  });
-  $('#editPresetFirst').addEventListener('click', () =>
-    openRuleEditorStep(name, loadRules(), targetId)
-  );
-}
-// Final step: the rule editor (빈 구성 / 규칙 복사 always land here; 프리셋은 "직접 편집" 선택 시).
-function openRuleEditorStep(name, rules, targetId) {
-  openDialog(
-    '새 게임 만들기 — ' + escapeHtml(name),
-    `${catalogProfileFields()}<div id="customCatalogMount"></div><button id="createCustomGame">구성 저장</button><p id="customGameError" role="status"></p>`
-  );
-  const read = mountRuleEditor(rules, $('#customCatalogMount'), true);
-  $('#createCustomGame').addEventListener('click', () => {
-    try {
-      createCustomGame(name, read(), targetId, readCatalogProfile());
-    } catch (e) {
-      $('#customGameError').textContent = e.message;
-      return;
-    }
-    closeDialog();
-    renderAll();
-  });
+  };
+  $('#skipGamePass').addEventListener('click', () => finish(null));
+  $('#createCustomGame').addEventListener('click', () => finish(readPass()));
 }

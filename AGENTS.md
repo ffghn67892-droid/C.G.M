@@ -1,3 +1,5 @@
+> 2026-09-19 병렬 작업: GPT는 할 일 추적기 Track 2 화면·입력을 구현 중이다. Track 1 파일 소유권과 인터페이스 계약은 [GPT_TASK_BRIEF.md](GPT_TASK_BRIEF.md), 통합 대기·검증 결과는 [GPT_TRACK2_STATUS.md](GPT_TRACK2_STATUS.md)를 따른다. 통합 전 완료로 간주하지 않는다.
+
 # DECKROOM 작업 지침
 
 > 현재 상태는 [HANDOFF.md](HANDOFF.md)를 참고하십시오.

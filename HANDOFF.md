@@ -1,3 +1,5 @@
+> 2026-09-19 할 일 추적기 Track 2: 사용자 착수 지시에 따라 화면·입력 구현 및 계약 스텁 검증 진행. Track 1 엔진 통합·기존 테스트 전환·브라우저 검증은 아직 대기 중이며 완료 상태가 아니다. 정확한 연동 사항과 검사 결과는 [GPT_TRACK2_STATUS.md](GPT_TRACK2_STATUS.md)를 따른다.
+
 # DECKROOM 인수인계
 
 > 후속 회귀 수정 완료(2026-09-19): dateKey 이관·초기 구매 지출·편집 일정 표시·단계 캐시·경계 중복 계산을 수정했다. 결과/복구: [REGRESSION_FIXES.md](docs/history/REGRESSION_FIXES.md), 당시 제외 검사 74개 대응: [REGRESSION_TEST_COVERAGE.md](REGRESSION_TEST_COVERAGE.md).
