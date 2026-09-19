@@ -32,9 +32,9 @@
 button.danger { background: var(--danger-bg); border: 1px solid var(--danger-border); color: var(--danger-text); border-radius: 7px; padding: 8px 12px; }
 button:disabled { opacity: 0.45; cursor: default !important; }
 .compact-card h3 { margin: 0px 0px 12px; }
-.compact-card .quest-row { gap: 10px; min-height: 60px; }
+.compact-card .quest-row { gap: 8px; min-height: 44px; }
 .compact-card .quest-row > span { flex: 1 1 0%; }
-.empty-slot { min-height: 90px; color: rgb(124, 138, 127); justify-content: center; border: 1px dashed rgb(71, 85, 70); }
+.empty-slot { min-height: 44px; color: rgb(124, 138, 127); justify-content: center; border: 1px dashed rgb(71, 85, 70); }
 .quest-summary { max-width: 650px; text-align: right; white-space: normal !important; }
 .quest-summary strong { font-size: 13px !important; line-height: 1.6; }
 .section-heading > .heading-actions { margin-left: auto; }
@@ -96,9 +96,10 @@ button:disabled { opacity: 0.45; cursor: default !important; }
 .rule-editor fieldset { min-width: 0px; margin: 12px 0px; }
 .rule-editor input,  .rule-editor select { min-width: 0px; max-width: 100%; }
 #addCustomGame { white-space: nowrap; }
-.catalog-grid { display: grid; grid-template-columns: 1fr; gap: 14px; align-items: stretch; }
+.catalog-grid { display: grid; grid-template-columns: 1fr; gap: 10px; align-items: stretch; }
 .catalog-card { min-width: 0px; }
-.card-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.compact-card { padding: 14px; }
+.card-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
 .card-head h3 { margin: 0px; }
 .card-head small { color: var(--muted); white-space: nowrap; margin-left: auto; }
 .catalog-card-collapsed { padding-bottom: 14px; }
@@ -106,15 +107,15 @@ button:disabled { opacity: 0.45; cursor: default !important; }
 .fold-target-row { align-items: flex-end; }
 .fold-target-row label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--muted); }
 .fold-target-row input { width: 90px; }
-.card-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin: 8px 0px; }
+.card-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 6px 0px; }
 .card-row-label { display: flex; flex-direction: column; gap: 2px; min-width: 120px; }
 .card-row-label p { margin: 0px; color: var(--muted); font-size: 12px; }
 .card-row-bar { flex: 1 1 160px; margin: 0px !important; }
 .icon-btn { min-width: 34px; height: 34px; padding: 0px !important; text-align: center; line-height: 34px; flex-shrink: 0; }
 .catalog-value { font-size: 28px; }
-.catalog-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 10px 0px; }
+.catalog-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 6px 0px; }
 .catalog-actions input { width: 90px; }
-.catalog-mission { min-height: 94px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 12px; }
+.catalog-mission { min-height: 44px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 10px; }
 .catalog-mission > div { min-width: 0px; max-width: 100%; }
 .catalog-mission select { max-width: 100%; width: 100%; white-space: normal; }
 .catalog-mission.done { opacity: 0.65; }
@@ -130,10 +131,10 @@ button:disabled { opacity: 0.45; cursor: default !important; }
 .rule-editor input,  .rule-editor select { min-width: 0px; max-width: 100%; }
 .catalog-card input,  .catalog-card select { background: rgb(25, 32, 24); color: rgb(237, 241, 232); border: 1px solid rgb(79, 96, 72); border-radius: 6px; padding: 8px; font: inherit; }
 .catalog-mission .catalog-actions button { font-size: 13px; padding: 8px; }
-.catalog-card .catalog-actions { margin: 8px 0px; }
-.catalog-card .quest-row { min-height: 90px; }
+.catalog-card .catalog-actions { margin: 6px 0px; }
+.catalog-card .quest-row { min-height: 44px; }
 .catalog-step-grid { grid-template-columns: repeat(auto-fit, minmax(88px, 1fr)); }
-.catalog-missions { grid-auto-rows: minmax(96px, 1fr); }
+.catalog-missions { grid-auto-rows: minmax(44px, auto); }
 .catalog-mission { box-sizing: border-box; }
 .catalog-mission > div { flex: 1 1 100%; }
 .catalog-mission .catalog-actions { display: flex; flex-wrap: wrap; }
