@@ -95,10 +95,16 @@ button:disabled { opacity: 0.45; cursor: default !important; }
 .rule-editor fieldset { min-width: 0px; margin: 12px 0px; }
 .rule-editor input,  .rule-editor select { min-width: 0px; max-width: 100%; }
 #addCustomGame { white-space: nowrap; }
-.catalog-grid { display: grid; grid-template-columns: repeat(3, minmax(0px, 1fr)); gap: 16px; align-items: start; }
+.catalog-grid { display: grid; grid-template-columns: 1fr; gap: 14px; align-items: stretch; }
 .catalog-card { min-width: 0px; }
-.catalog-card h3 { margin: 0px 0px 8px; }
-.catalog-card > small { display: block; margin-bottom: 12px; }
+.card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+.card-head h3 { margin: 0px; }
+.card-head small { color: var(--muted); white-space: nowrap; }
+.card-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin: 8px 0px; }
+.card-row-label { display: flex; flex-direction: column; gap: 2px; min-width: 120px; }
+.card-row-label p { margin: 0px; color: var(--muted); font-size: 12px; }
+.card-row-bar { flex: 1 1 160px; margin: 0px !important; }
+.icon-btn { min-width: 34px; height: 34px; padding: 0px !important; text-align: center; line-height: 34px; flex-shrink: 0; }
 .catalog-value { font-size: 28px; }
 .catalog-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 10px 0px; }
 .catalog-actions input { width: 90px; }
