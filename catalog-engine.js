@@ -321,6 +321,7 @@ function syncUniversalCatalog(g, now = new Date()) {
       p.resetPeriod = period;
       p.resetSchedule = 'kst-v1';
       p.generalDate = String(period);
+      delete p.collapsed;
     }
     const month = catalogPeriod({ schedule: { kind: 'monthly' } }, now);
     if (p.month !== month) {
@@ -520,7 +521,8 @@ function catalogAction(gameId, ruleId, action, options = {}) {
 function universalStatus(g) {
   let red = false,
     yellow = false,
-    remaining = false;
+    remaining = false,
+    count = 0;
   for (const r of catalogRules(g)) {
     if (!catalogActive(g, r) || catalogBlocked(g, r) || r.attention === 'none') continue;
     const p = ruleProgress(g, r);
@@ -535,6 +537,7 @@ function universalStatus(g) {
     if (!n) continue;
     if (r.type === 'quest' && r.completionLimit && catalogDone(g, r)) continue;
     remaining = true;
+    count++;
     red ||=
       r.attention === 'urgent' ||
       (r.type === 'resource' && n >= r.capacity) ||
@@ -545,6 +548,7 @@ function universalStatus(g) {
   }
   return {
     color: red ? 'urgent' : yellow ? 'warning' : remaining ? 'pending' : 'done',
-    label: remaining ? '!' : '✓'
+    label: remaining ? '!' : '✓',
+    count
   };
 }

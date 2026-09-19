@@ -84,3 +84,33 @@ test('catalog rejects invalid references, schedules and quantities without savin
   const a = start(), before = a.saved();
   for (const edit of ["r[0].quests[0].rewardIds=['missing']", "r[0].schedule.time='25:00'", "r[0].spawnCount=4", "r[0].rewards[0].resources.gold=-1", "r.push(structuredClone(r[0]))"]) { assert.throws(() => a.run(`{const r=structuredClone(kardsRules());${edit};updateKardsCatalog(r);}`)); assert.equal(a.saved(), before); }
 });
+
+test('universalStatus counts only true-incomplete rules and ignores a personal fold target', () => {
+  const a = start();
+  a.run("globalThis.r=newUniversalRule('goal');r.target=15;globalThis.id=createCustomGame('개인목표',[r])");
+  assert.equal(a.run('universalStatus(state.games[id]).count'), 1);
+  a.run("catalogAction(id,r.id,'progress',{amount:4})");
+  const before = a.run('universalStatus(state.games[id]).count');
+  assert.equal(before, 1);
+  assert.equal(a.run('state.games[id].ruleProgress[r.id].collapsed'), undefined);
+  a.run('state.games[id].ruleProgress[r.id].foldTarget=4');
+  assert.equal(
+    a.run(
+      "(()=>{const p=state.games[id].ruleProgress[r.id];return p.collapsed!==undefined?p.collapsed:(p.value||0)>=p.foldTarget})()"
+    ),
+    true
+  );
+  assert.equal(a.run('universalStatus(state.games[id]).count'), before);
+  a.run("catalogAction(id,r.id,'progress',{amount:11})");
+  assert.equal(a.run('universalStatus(state.games[id]).count'), 0);
+});
+
+test('period reset clears a rule\'s collapsed override but keeps its personal fold target', () => {
+  const a = start();
+  a.run("globalThis.r=newUniversalRule('goal');r.target=15;globalThis.id=createCustomGame('개인목표2',[r])");
+  a.run("catalogAction(id,r.id,'progress',{amount:4});state.games[id].ruleProgress[r.id].foldTarget=4;state.games[id].ruleProgress[r.id].collapsed=true");
+  a.nextDay();
+  a.run('syncGame(id)');
+  assert.equal(a.run('state.games[id].ruleProgress[r.id].collapsed'), undefined);
+  assert.equal(a.run('state.games[id].ruleProgress[r.id].foldTarget'), 4);
+});

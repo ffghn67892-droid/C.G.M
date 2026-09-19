@@ -30,7 +30,10 @@ function renderUniversalGame(id) {
   function card(r, counts) {
     const p = ruleProgress(g, r),
       blocked = !catalogActive(g, r) || catalogBlocked(g, r),
-      showSchedule = counts.get(ruleScheduleText(r)) === 1;
+      showSchedule = counts.get(ruleScheduleText(r)) === 1,
+      foldable = ['goal', 'pass', 'counter'].includes(r.type),
+      autoCollapsed = foldable && p.foldTarget != null && (p.value || 0) >= p.foldTarget,
+      collapsed = p.collapsed !== undefined ? p.collapsed : autoCollapsed;
     let body = '';
     if (r.type === 'quest') {
       body =
@@ -98,7 +101,16 @@ function renderUniversalGame(id) {
       if (shown.length)
         body += `<details class="catalog-steps" ${r.window || shown.length <= 6 ? 'open' : ''}><summary>구간 달성 보상</summary><div class="catalog-step-grid">${shown.map(x => `<div class="${value >= x.at ? 'claimed' : ''}"><b>${x.at}</b><span>${escapeHtml(rewardText(x.free || {}))}</span>${Object.keys(x.paid || {}).length ? `<small>유료 ${escapeHtml(rewardText(x.paid))}</small>` : ''}</div>`).join('')}</div></details>`;
     }
-    return `<section class="compact-card catalog-card" data-card="${r.id}"><div class="card-head"><h3>${escapeHtml(r.label)}</h3><small>${showSchedule ? escapeHtml(ruleScheduleText(r)) : ''}${blocked ? ' · 진행 불가' : ''}</small></div>${r.note ? `<p>${escapeHtml(r.note)}</p>` : ''}${body}</section>`;
+    const foldToggle = `<button class="icon-btn" data-fold-toggle="${r.id}" aria-label="${collapsed ? '펼치기' : '접기'}">${collapsed ? '▸' : '▾'}</button>`;
+    const foldTargetControl = foldable
+      ? collapsed
+        ? ''
+        : `<div class="card-row fold-target-row"><label>개인 목표<input type="number" min="0" max="${r.target}" placeholder="미설정" data-fold-target="${r.id}" value="${p.foldTarget ?? ''}" /></label><button data-fold-target-save="${r.id}">저장</button>${p.foldTarget != null ? `<button data-fold-target-clear="${r.id}">해제</button>` : ''}</div>`
+      : '';
+    const summary = collapsed
+      ? `<p class="card-fold-summary">${p.value || 0} / ${r.target}${p.foldTarget != null ? ` · 개인 목표 ${p.foldTarget}` : ''}</p>`
+      : '';
+    return `<section class="compact-card catalog-card ${collapsed ? 'catalog-card-collapsed' : ''}" data-card="${r.id}"><div class="card-head">${foldToggle}<h3>${escapeHtml(r.label)}</h3><small>${showSchedule ? escapeHtml(ruleScheduleText(r)) : ''}${blocked ? ' · 진행 불가' : ''}</small></div>${summary}${collapsed ? '' : `${r.note ? `<p>${escapeHtml(r.note)}</p>` : ''}${foldTargetControl}${body}`}</section>`;
   }
   const groups = [...new Set(rules.filter(r => r.page).map(r => r.page))];
   g.catalogPage = groups.includes(g.catalogPage) ? g.catalogPage : groups[0];
@@ -160,6 +172,41 @@ function renderUniversalGame(id) {
     b.addEventListener('click', () => {
       const key = 'stepPage-' + b.dataset.stepPage;
       g[key] = (g[key] || 0) + Number(b.dataset.delta);
+      renderAll();
+    })
+  );
+  $$('[data-fold-toggle]').forEach(b =>
+    b.addEventListener('click', () => {
+      const r = rules.find(x => x.id === b.dataset.foldToggle),
+        p = ruleProgress(g, r),
+        foldable = ['goal', 'pass', 'counter'].includes(r.type),
+        autoCollapsed = foldable && p.foldTarget != null && (p.value || 0) >= p.foldTarget,
+        current = p.collapsed !== undefined ? p.collapsed : autoCollapsed;
+      p.collapsed = !current;
+      renderAll();
+    })
+  );
+  $$('[data-fold-target-save]').forEach(b =>
+    b.addEventListener('click', () => {
+      const r = rules.find(x => x.id === b.dataset.foldTargetSave),
+        p = ruleProgress(g, r),
+        input = $(`[data-fold-target="${r.id}"]`),
+        n = Number(input.value);
+      if (input.value === '' || !Number.isSafeInteger(n) || n < 0 || n > r.target) {
+        toast('개인 목표값을 확인하세요.');
+        return;
+      }
+      p.foldTarget = n;
+      delete p.collapsed;
+      renderAll();
+    })
+  );
+  $$('[data-fold-target-clear]').forEach(b =>
+    b.addEventListener('click', () => {
+      const r = rules.find(x => x.id === b.dataset.foldTargetClear),
+        p = ruleProgress(g, r);
+      delete p.foldTarget;
+      delete p.collapsed;
       renderAll();
     })
   );

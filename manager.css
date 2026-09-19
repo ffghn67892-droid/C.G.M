@@ -10,6 +10,7 @@
 .overview-card dd { margin: 0px; }
 .card-actions button { font-size: 12px; }
 .status-dot { margin-left: auto; flex-shrink: 0; border-radius: 50%; font-size: 13px; text-align: center; width: 22px; height: 22px; line-height: 22px; }
+.status-dot-count { width: auto; min-width: 22px; border-radius: 11px; padding: 0px 6px; font: 500 11px "DM Mono", monospace; }
 .status-dot.urgent { background: rgb(254, 102, 102); color: rgb(35, 19, 19); }
 .status-dot.warning { background: rgb(255, 213, 91); color: rgb(51, 46, 22); }
 .status-dot.pending { background: rgb(134, 205, 134); color: rgb(24, 52, 24); }
@@ -97,9 +98,14 @@ button:disabled { opacity: 0.45; cursor: default !important; }
 #addCustomGame { white-space: nowrap; }
 .catalog-grid { display: grid; grid-template-columns: 1fr; gap: 14px; align-items: stretch; }
 .catalog-card { min-width: 0px; }
-.card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+.card-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
 .card-head h3 { margin: 0px; }
-.card-head small { color: var(--muted); white-space: nowrap; }
+.card-head small { color: var(--muted); white-space: nowrap; margin-left: auto; }
+.catalog-card-collapsed { padding-bottom: 14px; }
+.card-fold-summary { color: var(--muted); font-size: 12px; margin: 0px; }
+.fold-target-row { align-items: flex-end; }
+.fold-target-row label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--muted); }
+.fold-target-row input { width: 90px; }
 .card-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin: 8px 0px; }
 .card-row-label { display: flex; flex-direction: column; gap: 2px; min-width: 120px; }
 .card-row-label p { margin: 0px; color: var(--muted); font-size: 12px; }
