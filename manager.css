@@ -155,7 +155,8 @@ button.tracker-card:hover { border-color: var(--lime); background: rgb(43, 55, 3
 .tracker-ended { border-style: dashed; }
 .tracker-ended .tracker-number { color: var(--muted); }
 .tracker-history { margin-bottom: 16px; display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-start; font-size: 12px; }
-.tracker-history details { padding: 8px; color: var(--muted); }
+.tracker-history button, .tracker-pass { background: rgb(53, 67, 47); border: 1px solid rgb(94, 118, 83); color: rgb(237, 243, 232); border-radius: 7px; padding: 8px 12px; cursor: pointer; }
+.tracker-history details { padding: 8px; color: var(--muted); background: rgb(30, 39, 29); border: 1px solid rgb(76, 91, 69); border-radius: 7px; }
 .tracker-history li { padding: 3px 0; }
 .tracker-empty { color: var(--muted); padding: 24px 0; line-height: 1.7; }
 .tracker-pass { display: flex; align-items: center; flex-wrap: wrap; gap: 14px; margin-top: 18px; padding: 12px 18px; }
