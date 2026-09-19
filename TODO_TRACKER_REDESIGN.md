@@ -138,3 +138,81 @@
 1. 2.3의 결정 사항을 반영해 정확한 데이터 스키마(필드명·타입)를 확정한다. 슬롯형·게이지형 카드 상호작용, 되돌리기 방식(즉시 반영 + 실행취소 기록) 모두 확정되어 남은 열린 질문은 없다.
 2. 위 6절의 변환 규칙대로 `legacy-migrations.js`의 자동 변환 로직 초안을 설계한다.
 3. 확정된 스키마와 7절의 압축 카드 방향으로 `catalog-engine.js`부터(검증·상태 계산) 순서대로 재작성하고, 매 단계 `npm.cmd test`와 브라우저 검증 후 개별 커밋으로 남긴다 — 지금까지의 작업 원칙을 그대로 따른다.
+
+## 9. 협업 구조 — Claude/GPT 병렬 작업 분리
+
+작업량이 커져 GPT(같은 폴더 `C:\Project_1`에 직접 파일 접근 가능한 에이전트, 예: Codex CLI)와 분업한다. 기존 코드가 **엔진(catalog-engine.js)과 화면/입력(catalog-editor.js·catalog-view.js·setup.js)이 함수 호출로만 연결된 구조**라는 점을 그대로 작업 경계로 쓴다 — 겹치는 파일이 없어야 진짜 병렬 작업이 가능하기 때문이다.
+
+| 트랙 | 담당 | 소유 파일 | 범위 |
+|---|---|---|---|
+| **Track 1 — 엔진/데이터** | Claude(나) | `catalog-engine.js`, `legacy-migrations.js`, `catalog-presets.js`, `game-config.js`, `reward-ledger.js`(삭제), 이 파일들의 테스트 | 새 스키마 검증·상태 계산·주기 롤오버·실행취소 기록·기존 데이터 전환 로직. 아래 10절의 "엔진 인터페이스"를 구현해 제공하는 쪽. |
+| **Track 2 — 화면/입력** | GPT | `catalog-editor.js`, `catalog-view.js`, `setup.js`, 관련 CSS(`manager.css`) | 새 마법사(포맷×형태 선택, 리셋 재지정, 패스 입력), 7절의 압축 카드 UI, 실행취소 UI. 10절의 엔진 인터페이스를 **호출만** 하고 내부 구현엔 관여하지 않는 쪽. |
+
+**순서 원칙**: 두 트랙이 완전히 동시에 시작할 수는 없다. 화면 쪽이 기댈 함수 시그니처가 먼저 있어야 하므로, 내가 먼저 10절의 "엔진 인터페이스 계약"을 확정해 이 문서에 못박는다. GPT는 이 계약을 신뢰하고 **내 엔진 구현이 끝나길 기다리지 않고** 그 계약대로 동작하는 것처럼 가정하고 화면을 만들면 된다(필요하면 임시 스텁으로 로컬 테스트). 계약이 바뀌면 내가 이 문서를 갱신하고 알린다.
+
+**같은 작업 폴더를 공유할 때의 규칙** (파일 충돌·git 사고 방지):
+- 서로 상대방 소유 파일은 절대 수정하지 않는다(위 표 기준).
+- `git add -A`, `git add .`, `git checkout .`, `git reset --hard` 등 **저장소 전체에 영향을 주는 명령은 쓰지 않는다** — 항상 자신이 만진 파일 이름을 명시해서 `git add <file>`으로 스테이징한다. 상대방이 아직 커밋 안 한 작업 중인 변경을 건드릴 위험을 없애기 위함이다.
+- 각자 자주(작은 단위로) 커밋한다. 브랜치를 나눌 필요는 없다 — 소유 파일이 겹치지 않으므로 `master`에 각자 커밋해도 충돌이 나지 않는다.
+- `index.html`의 스크립트 로드 순서, `package.json`의 `build.files`처럼 **양쪽 다 건드릴 수 있는 공용 파일**은 Track 1(나)이 새 파일 추가/삭제가 생길 때만 책임지고 갱신한다.
+- 테스트 파일(`tests/*.test.cjs`)은 트랙별로 자기 레이어만 검증하는 새 파일로 분리해서 추가한다(예: `tests/catalog-engine-v2.test.cjs`는 Track 1, `tests/catalog-view-v2.test.cjs`는 Track 2) — 같은 파일을 두 트랙이 동시에 고치지 않도록.
+
+## 10. 엔진 인터페이스 계약 (초안 — Track 2가 이걸 보고 화면을 만든다)
+
+Track 1이 새로 구현할 `catalog-engine.js`의 공개 함수/데이터 모양이다. 이름·필드는 기존 엔진의 관례(`ruleProgress`, `catalogAction`, `universalStatus`, `syncUniversalCatalog`)를 최대한 유지해 화면 쪽 코드 변경을 줄인다. 세부 구현이 바뀌어도 이 시그니처는 고정한다 — 바뀌면 이 절을 갱신하고 GPT에게 알린다.
+
+### 규칙(rule) 정의 — `catalogRules(g)`가 반환하는 배열의 원소
+
+```js
+{
+  id, name,                      // 사용자가 지정한 이름
+  format: 'daily' | 'weekly' | 'fixed',
+  resetOverride: null | { time: 'HH:MM' } | { weekday: 0-6, time: 'HH:MM' }, // 게임 기본값을 덮어쓸 때만 존재 (2.3-3)
+  startDate, endDate,             // format:'fixed'일 때만 사용
+  kind: 'slot' | 'gauge',
+  // kind:'slot'
+  refillCount, maxHeld,
+  // kind:'gauge'
+  min, max, milestones: number[]  // 오름차순 정렬된 마일스톤 값 목록 (구간 보상 지점, 2.3-2)
+}
+```
+
+### 진행도 — `ruleProgress(g, r)`가 반환/생성하는 객체 (`state.games[id].ruleProgress[ruleId]`)
+
+```js
+{
+  // kind:'slot'
+  held: number,                  // 0 <= held <= r.maxHeld, 항상 clamp
+  // kind:'gauge'
+  value: number,                 // r.min <= value <= r.max, 항상 clamp
+  foldTarget: number | null,     // 개인 목표 (Stage K2 foldTarget 재사용)
+  collapsed: boolean | undefined,// 수동 펼침/접힘 오버라이드
+  achievedMilestones: number[],  // 이번 주기에 도달한 마일스톤 값들 (2.3-2, 사라지지 않음)
+  // format:'fixed'
+  ended: boolean                 // endDate가 지났는지 (2.3-1 "종료됨" 표시용)
+}
+```
+
+### 동작 — `catalogAction(gameId, ruleId, action, payload)`
+
+| action | 대상 | 동작 |
+|---|---|---|
+| `'complete'` | slot | `held -= 1` (0 미만 방지), 실행취소 기록에 push |
+| `'increment'` | gauge | `value += 1` (max clamp), 실행취소 기록에 push |
+| `'undo'` | 무관 | `state.games[id].actionHistory`의 마지막 항목을 꺼내 반대로 적용 |
+| `'manual-add'` / `'manual-remove'` | slot | 상세 설정 화면 전용(2.3-10). maxHeld clamp 동일 적용 |
+| `'delete-rule'` | format:'fixed' & ended | 규칙 자체를 제거 (2.3-1 삭제 버튼) |
+| `'bump-pass-level'` | 게임 메타데이터 | `state.games[id].pass.level += 1` (수동, 2.3-4) |
+
+### 상태 — `universalStatus(g)` 반환값
+
+```js
+{ color: 'urgent'|'warning'|'pending'|'done', label, count }
+```
+`count`는 "실제로 남은 일"의 개수다 — slot은 `held > 0`인 규칙 수, gauge는 `value < max`(진짜 목표 기준, `foldTarget`은 절대 참조하지 않음, 2.3-9)인 규칙 수를 합산한다.
+
+### 주기 처리 — `syncUniversalCatalog(g, now)`
+
+리셋 시점에: slot은 `held = min(held + refillCount, maxHeld)`, gauge는 `value = min`으로 초기화하고 `achievedMilestones`·`collapsed`를 비운다(K2 원칙 계승). `foldTarget`은 절대 건드리지 않는다. `format:'fixed'`는 리셋 대상이 아니며, `endDate` 경과 시 `ended = true`로만 표시한다(삭제는 사용자 조작으로만).
+
+**실행취소 기록**: `state.games[id].actionHistory`에 최근 N개(예: 20개)의 `{ ruleId, kind, delta, at }`를 쌓는 배열. Track 2는 이 배열을 읽어 "실행취소" UI(예: 최근 몇 개를 순서대로 되돌리는 목록)를 그리고, 되돌릴 항목을 고르면 `catalogAction(id, ruleId, 'undo')`를 호출한다. 배열 자체의 관리(push/pop, 길이 제한)는 Track 1(엔진)이 전담한다.
