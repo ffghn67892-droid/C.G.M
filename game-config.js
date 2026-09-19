@@ -1,182 +1,18 @@
-const CHESTS = [
-  { gold: 30, '일반 와일드카드': 1 },
-  { gold: 80, '일반 와일드카드': 2, '무작위 일반 골드 카드': 2 },
-  { gold: 150, '한정 와일드카드': 3, '무작위 한정 골드 카드': 2 },
-  {
-    gold: 250,
-    '특수 와일드카드': 1,
-    '한정 와일드카드': 1,
-    '무작위 특수 골드 카드': 1,
-    '무작위 등급 미상 골드 카드': 2
-  },
-  {
-    gold: 350,
-    '정예 와일드카드': 1,
-    '특수 와일드카드': 1,
-    '한정 와일드카드': 1,
-    '무작위 특수 골드 카드': 2
-  }
-];
-function defaultKardsRules() {
-  const schedule = { kind: 'daily', time: '09:00', days: 1, weekday: 3, anchor: '2026-01-01' };
-  return [
-    {
-      id: 'daily',
-      type: 'quest',
-      label: '일일 퀘스트',
-      source: 'builtin',
-      schedule,
-      spawnCount: 1,
-      capacity: 3,
-      passExtra: 1,
-      rewards: [
-        { id: 'gold50', label: '50 GOLD', resources: { gold: 50 } },
-        { id: 'gold60', label: '60 GOLD', resources: { gold: 60 } }
-      ],
-      quests: [{ id: 'daily', label: '일일 퀘스트', rewardIds: ['gold50', 'gold60'] }]
-    },
-    {
-      id: 'free',
-      type: 'claim',
-      label: '일일 무료 카드',
-      source: 'builtin',
-      schedule: { ...schedule },
-      spawnCount: 1,
-      capacity: 1,
-      passExtra: 1,
-      rewards: [{ id: 'card', label: '카드 1장', resources: { cards: 1 } }],
-      quests: []
-    },
-    {
-      id: 'chest',
-      type: 'claim',
-      label: '주간 보상 상자',
-      source: 'builtin',
-      schedule: { ...schedule, kind: 'weekly' },
-      spawnCount: 1,
-      capacity: 1,
-      passExtra: 0,
-      rewards: CHESTS.map((resources, i) => ({
-        id: `tier${i + 1}`,
-        label: `티어 ${i + 1}`,
-        resources: { ...resources }
-      })),
-      quests: []
-    }
-  ];
-}
+// Stage L1 (2026-09-19, tracker redesign): removed the dead KARDS-specific preset/adapter
+// chain (CHESTS, defaultKardsRules, kardsRules, catalogAdapter and the old single-arg
+// rulePeriod/ruleScheduleText/catalogRules/ruleProgress they backed) - catalog-engine.js's
+// versions of those functions load after this file and had already fully shadowed them at
+// runtime (see TODO_TRACKER_REDESIGN.md §10). newCatalogRule, missionRewards,
+// syncKardsRules, ruleClaimLimit and completeCatalogRule had no remaining callers at all
+// and are gone too. See REGRESSION_TEST_COVERAGE.md's 2026-09-19 재후속 section.
 function validateRuleCatalog(rules) {
   return validateCatalog(rules);
-}
-function kardsRules(g = state.games.kards) {
-  g.ruleCatalog ||= defaultKardsRules();
-  g.catalogVersion = 1;
-  const r = g.ruleCatalog.find(r => r.id === 'chest');
-  if (r && !r.view) {
-    r.view = 'select';
-    r.controls = { select: 'chestTier', claim: 'claimChest' };
-  }
-  return g.ruleCatalog;
-}
-function rulePeriod(rule, now = new Date()) {
-  return catalogPeriod(rule, now);
-}
-function ruleInterval(rule) {
-  return rule.schedule.kind === 'weekly'
-    ? 7
-    : rule.schedule.kind === 'intervalDays'
-      ? rule.schedule.days
-      : 1;
-}
-function ruleScheduleText(r) {
-  return catalogScheduleText(r);
 }
 function isCustomGame(id) {
   return !!state.customGames?.some(x => x[0] === id);
 }
-function catalogRules(g) {
-  return g.ruleCatalog || [];
-}
-function newCatalogRule(type = 'quest') {
-  const reward = { id: 'reward-' + crypto.randomUUID(), label: '보상', resources: { gold: 50 } };
-  return {
-    id: 'rule-' + crypto.randomUUID(),
-    type,
-    label: type === 'quest' ? '새 퀘스트' : '새 정기 보상',
-    source: 'user',
-    schedule: { kind: 'daily', time: '09:00', days: 1, weekday: 1, anchor: '2026-01-01' },
-    spawnCount: 1,
-    capacity: type === 'quest' ? 3 : 1,
-    passExtra: 0,
-    rewards: [reward],
-    quests:
-      type === 'quest'
-        ? [{ id: 'item-' + crypto.randomUUID(), label: '퀘스트', rewardIds: [reward.id] }]
-        : []
-  };
-}
-function catalogAdapter(g) {
-  if (g !== state.games.kards)
-    return {
-      state: r => {
-        g.ruleProgress ||= {};
-        return (g.ruleProgress[r.id] ||= { missions: [], completed: [] });
-      },
-      bonus: () => !!g.profile.pass.active,
-      key: (r, m, p, n) => (m ? `rule/${r.id}/quest/${m.id}` : `rule/${r.id}/${p}/${n}`)
-    };
-  const o = ensureKardsData(g);
-  return {
-    state: r => {
-      if (r.id === 'daily') return o;
-      g.ruleProgress ||= {};
-      const p = (g.ruleProgress[r.id] ||= { missions: [], completed: [] });
-      if (r.id === 'free') {
-        p.period = o.freeCardPeriod;
-        p.claimed = o.freeCardsClaimed || 0;
-      }
-      if (r.id === 'chest')
-        p.claimed = Math.max(p.claimed || 0, g.ledger[`chest/${rulePeriod(r)}`] ? 1 : 0);
-      return p;
-    },
-    flush: (r, p) => {
-      if (r.id === 'free') {
-        o.freeCardPeriod = p.period;
-        o.freeCardsClaimed = p.claimed || 0;
-      }
-    },
-    bonus: () => !!o.passActive,
-    setBonus: active => {
-      o.passActive = active;
-    },
-    key: (r, m, p, n) =>
-      m
-        ? r.id === 'daily'
-          ? `quest/${m.id}`
-          : `rule/${r.id}/quest/${m.id}`
-        : r.id === 'free'
-          ? `free/${p}/${n}`
-          : r.id === 'chest'
-            ? `chest/${p}${n ? '/' + n : ''}`
-            : `rule/${r.id}/${p}/${n}`
-  };
-}
-function ruleProgress(g, r) {
-  return catalogAdapter(g).state(r);
-}
-function missionRewards(r, m) {
-  return m.rewardChoices || r.rewards;
-}
 function syncCatalog(g, now = new Date()) {
   return syncUniversalCatalog(g, now);
-}
-function syncKardsRules(g, now = new Date()) {
-  kardsRules(g);
-  syncCatalog(g, now);
-  return g.kards;
-}
-function ruleClaimLimit(g, r) {
-  return r.spawnCount + (catalogAdapter(g).bonus() ? r.passExtra : 0);
 }
 function runCatalogAction(gameId, change) {
   const previous = structuredClone(state.games[gameId]);
@@ -192,13 +28,6 @@ function runCatalogAction(gameId, change) {
     state.games[gameId] = previous;
     throw error;
   }
-}
-function completeCatalogRule(gameId, ruleId, missionId, rewardId, expectedPeriod) {
-  return catalogAction(gameId, ruleId, 'complete', {
-    mission: missionId,
-    reward: rewardId,
-    period: expectedPeriod
-  });
 }
 // Edits a game's rule list in place: re-clamps every surviving rule's progress to its
 // (possibly changed) capacity/range, and drops progress + undo history for removed rules.

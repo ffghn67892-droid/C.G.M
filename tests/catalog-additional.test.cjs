@@ -6,6 +6,13 @@ const { start } = require('./harness.cjs');
 // AI-friendly reorg (2026-09-19). Only tests that still pass against the current
 // engine/UI were kept verbatim; see REGRESSION_TEST_COVERAGE.md for what was
 // deliberately not carried forward and why.
+//
+// Stage L1 (2026-09-19, tracker redesign): 4 tests removed - 2 tested the retired
+// reward/schedule schema directly, 1 tested a since-deleted collapsed field (superseded
+// by tests/catalog-engine-v2.test.cjs), and 1 ("catalog rejects invalid references...")
+// was a false positive that only passed because the function it called
+// (updateKardsCatalog) no longer exists - any edit threw a ReferenceError before real
+// validation ever ran. See REGRESSION_TEST_COVERAGE.md.
 
 test('스냅 화면 렌더링은 주간 보상을 지급하지 않는다', () => {
   const app = start();
@@ -64,53 +71,5 @@ test('all supplied daily and weekly boundaries are KST, including Sunday and Mon
 test('main overview exposes nine games, with independent registration and reset', () => { const app = start(); app.run("state.activeGame='overview';renderAll()"); assert.equal(app.document.querySelectorAll('.overview-card').length, 9); app.run("award('mtga','example',{gold:750});save()"); const before = app.run("JSON.stringify(state.games.mtga)"); app.run("resetGame('kards');renderAll()"); assert.equal(app.run("state.games.kards.profile.registeredAt"), null); assert.equal(app.run("JSON.stringify(state.games.mtga)"), before); assert.equal(app.document.querySelectorAll('.overview-card').length, 8); assert.equal(app.document.querySelector('[data-game-name="kards"]'), null); });
 test('unregistered games are hidden until created; overview shows an empty state with none registered', () => { const a = start(); a.run("for(const [id] of GAMES)state.games[id].profile.registeredAt=null;state.activeGame='overview';renderAll()"); assert.equal(a.document.querySelectorAll('.overview-card').length, 0); assert.ok(a.document.querySelector('.overview-empty')); assert.equal(a.document.querySelectorAll('#gameSwitcher .game-tab[data-game]').length, 1); assert.ok(a.document.querySelector('#newGameTab')); });
 
-test('all five chest tiers retain rarity distinction and exact currency amounts', () => { const a = start(); const expected = [{ gold: 30, '일반 와일드카드': 1 }, { gold: 80, '일반 와일드카드': 2, '무작위 일반 골드 카드': 2 }, { gold: 150, '한정 와일드카드': 3, '무작위 한정 골드 카드': 2 }, { gold: 250, '특수 와일드카드': 1, '한정 와일드카드': 1, '무작위 특수 골드 카드': 1, '무작위 등급 미상 골드 카드': 2 }, { gold: 350, '정예 와일드카드': 1, '특수 와일드카드': 1, '한정 와일드카드': 1, '무작위 특수 골드 카드': 2 }]; assert.deepEqual(JSON.parse(a.run('JSON.stringify(CHESTS)')), expected); });
-
-test('muted Duel Links resumes at KST midnight; reset sounds track distinct events', () => { const a = start(); a.select('duel-links'); a.run("muteGame('duel-links')"); const end = a.run('data().profile.mutedUntil'); assert.equal(new Date(end).toISOString(), '2026-09-10T15:00:00.000Z'); a.select('snap'); a.run("data().profile.alerts.reset=true;updateAlerts('snap')"); a.setTime('2026-09-11T04:00:00+09:00'); a.run('refreshActiveQuests()'); assert.equal(a.run('data().profile.pendingAlerts.length'), 1); a.run("acknowledge('snap');refreshActiveQuests()"); assert.equal(a.run('data().profile.pendingAlerts.length'), 0); a.setTime('2026-09-11T12:00:00+09:00'); a.run('refreshActiveQuests()'); assert.equal(a.run('data().profile.pendingAlerts.length'), 1); });
-
 test('Might 01:00 and login04:40 periods change at exact millisecond', () => { const a = start(); for (const [hour, minute] of [[1, 0], [4, 40]]) { const at = `2026-09-11T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00+09:00`; a.setTime(new Date(Date.parse(at) - 1).toISOString()); const old = a.run(`periodAt(${hour},${minute})`); a.advance(1); assert.equal(a.run(`periodAt(${hour},${minute})`), old + 1); } });
 
-test('catalog schedules use KST weekly and anchored N-day boundaries', () => {
-  const a = start();
-  a.run("globalThis.r=defaultKardsRules()[0];r.schedule={kind:'weekly',weekday:1,time:'05:30'}");
-  const before = a.run("rulePeriod(r,new Date('2026-09-14T05:29:59.999+09:00'))");
-  assert.equal(a.run("rulePeriod(r,new Date('2026-09-14T05:30:00+09:00'))"), before + 7);
-  a.run("r.schedule={kind:'intervalDays',days:3,anchor:'2026-09-10',time:'09:15'}");
-  const n = a.run("rulePeriod(r,new Date('2026-09-13T09:14:59+09:00'))");
-  assert.equal(a.run("rulePeriod(r,new Date('2026-09-13T09:15:00+09:00'))"), n + 3);
-});
-
-test('catalog rejects invalid references, schedules and quantities without saving', () => {
-  const a = start(), before = a.saved();
-  for (const edit of ["r[0].quests[0].rewardIds=['missing']", "r[0].schedule.time='25:00'", "r[0].spawnCount=4", "r[0].rewards[0].resources.gold=-1", "r.push(structuredClone(r[0]))"]) { assert.throws(() => a.run(`{const r=structuredClone(kardsRules());${edit};updateKardsCatalog(r);}`)); assert.equal(a.saved(), before); }
-});
-
-test('universalStatus counts only true-incomplete rules and ignores a personal fold target', () => {
-  const a = start();
-  a.run("globalThis.r=newUniversalRule('goal');r.target=15;globalThis.id=createCustomGame('개인목표',[r])");
-  assert.equal(a.run('universalStatus(state.games[id]).count'), 1);
-  a.run("catalogAction(id,r.id,'progress',{amount:4})");
-  const before = a.run('universalStatus(state.games[id]).count');
-  assert.equal(before, 1);
-  assert.equal(a.run('state.games[id].ruleProgress[r.id].collapsed'), undefined);
-  a.run('state.games[id].ruleProgress[r.id].foldTarget=4');
-  assert.equal(
-    a.run(
-      "(()=>{const p=state.games[id].ruleProgress[r.id];return p.collapsed!==undefined?p.collapsed:(p.value||0)>=p.foldTarget})()"
-    ),
-    true
-  );
-  assert.equal(a.run('universalStatus(state.games[id]).count'), before);
-  a.run("catalogAction(id,r.id,'progress',{amount:11})");
-  assert.equal(a.run('universalStatus(state.games[id]).count'), 0);
-});
-
-test('period reset clears a rule\'s collapsed override but keeps its personal fold target', () => {
-  const a = start();
-  a.run("globalThis.r=newUniversalRule('goal');r.target=15;globalThis.id=createCustomGame('개인목표2',[r])");
-  a.run("catalogAction(id,r.id,'progress',{amount:4});state.games[id].ruleProgress[r.id].foldTarget=4;state.games[id].ruleProgress[r.id].collapsed=true");
-  a.nextDay();
-  a.run('syncGame(id)');
-  assert.equal(a.run('state.games[id].ruleProgress[r.id].collapsed'), undefined);
-  assert.equal(a.run('state.games[id].ruleProgress[r.id].foldTarget'), 4);
-});
