@@ -37,7 +37,7 @@ function renderUniversalGame(id) {
     let body = '';
     if (r.type === 'quest') {
       body =
-        `<div class="catalog-actions">${button(r, 'remove', '−', 'class="icon-btn"', blocked || !p.missions.some(m => !m.done))}${button(r, 'spawn', '＋', 'class="icon-btn"', blocked || p.missions.length >= r.capacity)}<span>${p.missions.filter(m => !m.done).length} / ${r.capacity}</span></div><div class="catalog-missions" style="display:grid;grid-template-columns:repeat(${Math.min(3, Math.max(1, r.columns || 1))},minmax(0,1fr))">` +
+        `<div class="catalog-actions">${button(r, 'remove', '−', 'class="icon-btn"', blocked || !p.missions.some(m => !m.done))}${button(r, 'spawn', '＋', 'class="icon-btn"', blocked || p.missions.length >= r.capacity)}<span class="catalog-value">${p.missions.filter(m => !m.done).length} / ${r.capacity}</span></div><div class="catalog-missions" style="display:grid;grid-template-columns:repeat(${Math.min(3, Math.max(1, r.columns || 1))},minmax(0,1fr))">` +
         p.missions
           .map(
             m =>
@@ -80,7 +80,7 @@ function renderUniversalGame(id) {
         '</div>';
     } else if (r.type === 'claim') {
       if (r.hideCompleted && catalogDone(g, r)) return '';
-      body = `<div class="card-row"><p>${p.claimed || 0} / ${ruleClaimLimit(g, r)}${r.monthlyLimit ? ` · 이번 달 ${p.monthCount || 0}/${r.monthlyLimit}` : ''}</p><div class="catalog-actions">${r.rewards.map(x => button(r, 'complete', x.label, `data-reward="${x.id}"`, blocked || catalogDone(g, r))).join('')}</div></div>`;
+      body = `<div class="card-row"><div class="card-row-label"><strong class="catalog-value">${p.claimed || 0} / ${ruleClaimLimit(g, r)}</strong>${r.monthlyLimit ? `<p>이번 달 ${p.monthCount || 0}/${r.monthlyLimit}</p>` : ''}</div><div class="catalog-actions">${r.rewards.map(x => button(r, 'complete', x.label, `data-reward="${x.id}"`, blocked || catalogDone(g, r))).join('')}</div></div>`;
     } else if (r.type === 'resource') {
       const clock = catalogResourceClock(r, p);
       body = `<div class="card-row"><div class="card-row-label"><strong class="catalog-value">${p.value} / ${r.capacity}</strong><p data-clock="${r.id}">${clock.label}</p></div><div class="win-progress card-row-bar"><span data-clock-bar="${r.id}" style="width:${clock.percent}%"></span></div>${button(r, 'consume', r.consumeLabel || '1개 사용', '', blocked || p.value < 1)}</div>`;

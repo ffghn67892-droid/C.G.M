@@ -111,8 +111,9 @@ button:disabled { opacity: 0.45; cursor: default !important; }
 .card-row-label { display: flex; flex-direction: column; gap: 2px; min-width: 120px; }
 .card-row-label p { margin: 0px; color: var(--muted); font-size: 12px; }
 .card-row-bar { flex: 1 1 160px; margin: 0px !important; }
-.icon-btn { min-width: 34px; height: 34px; padding: 0px !important; text-align: center; line-height: 34px; flex-shrink: 0; }
-.catalog-value { font-size: 28px; }
+.icon-btn { min-width: 28px; height: 28px; padding: 0px !important; text-align: center; line-height: 28px; flex-shrink: 0; }
+.catalog-value { font-size: 20px; font-weight: 700; color: var(--lime); }
+.catalog-card button:not(.icon-btn) { padding: 6px 10px; font-size: 13px; }
 .catalog-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 6px 0px; }
 .catalog-actions input { width: 90px; }
 .catalog-mission { min-height: 44px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 10px; }
@@ -130,11 +131,12 @@ button:disabled { opacity: 0.45; cursor: default !important; }
 .rule-editor .form-grid { margin-bottom: 12px; }
 .rule-editor input,  .rule-editor select { min-width: 0px; max-width: 100%; }
 .catalog-card input,  .catalog-card select { background: rgb(25, 32, 24); color: rgb(237, 241, 232); border: 1px solid rgb(79, 96, 72); border-radius: 6px; padding: 8px; font: inherit; }
-.catalog-mission .catalog-actions button { font-size: 13px; padding: 8px; }
+.catalog-mission .catalog-actions button { font-size: 12px; padding: 6px 10px; }
 .catalog-card .catalog-actions { margin: 6px 0px; }
 .catalog-card .quest-row { min-height: 44px; }
 .catalog-step-grid { grid-template-columns: repeat(auto-fit, minmax(88px, 1fr)); }
 .catalog-missions { grid-auto-rows: minmax(44px, auto); }
 .catalog-mission { box-sizing: border-box; }
-.catalog-mission > div { flex: 1 1 100%; }
+.catalog-mission > div:first-child { flex: 1 1 auto; min-width: 0; }
+.catalog-mission > .catalog-actions { flex: 0 0 auto; margin: 0; }
 .catalog-mission .catalog-actions { display: flex; flex-wrap: wrap; }
