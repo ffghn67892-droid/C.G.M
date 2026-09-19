@@ -13,8 +13,9 @@ function muteGame(id) {
   save();
   renderAll();
 }
-function statusBadgeText(status) {
-  return status.color === 'done' || status.color === 'setup' ? status.label : `!${status.count}`;
+function statusBadgeHtml(status, ariaLabel) {
+  const remaining = status.color !== 'done' && status.color !== 'setup';
+  return `<span class="status-badge"${ariaLabel ? ` aria-label="${escapeHtml(ariaLabel)}"` : ''}><b class="status-dot ${status.color}">${remaining ? '!' : escapeHtml(status.label)}</b>${remaining ? `<b class="status-count">${status.count}</b>` : ''}</span>`;
 }
 function renderNavigation() {
   $('body').classList.toggle('shadowverse-view', state.activeGame === 'shadowverse');
@@ -23,7 +24,8 @@ function renderNavigation() {
     `<button class="game-tab ${state.activeGame === 'overview' ? 'active' : ''}" data-game="overview" role="tab" aria-selected="${state.activeGame === 'overview'}"><span class="game-tab-mark lime">⌂</span><span>메인</span></button>` +
     registered.map(([id, name, mark, color]) => {
       const status = gameStatus(id);
-      return `<button class="game-tab ${state.activeGame === id ? 'active' : ''}" data-game="${id}" role="tab" aria-selected="${state.activeGame === id}"><span class="game-tab-mark ${color}">${mark}</span><span>${escapeHtml(name)}</span><b class="status-dot ${status.color} ${status.color === 'done' ? '' : 'status-dot-count'}" aria-label="${status.color === 'urgent' ? '오늘 확인' : status.color === 'warning' ? '진행 권장' : status.color === 'pending' ? '진행 중' : status.label}">${statusBadgeText(status)}</b></button>`;
+      const ariaLabel = status.color === 'urgent' ? '오늘 확인' : status.color === 'warning' ? '진행 권장' : status.color === 'pending' ? '진행 중' : status.label;
+      return `<button class="game-tab ${state.activeGame === id ? 'active' : ''}" data-game="${id}" role="tab" aria-selected="${state.activeGame === id}"><span class="game-tab-mark ${color}">${mark}</span><span>${escapeHtml(name)}</span>${statusBadgeHtml(status, ariaLabel)}</button>`;
     }).join('') +
     `<button class="game-tab" id="newGameTab" type="button"><span class="game-tab-mark lime">+</span><span>새 게임 만들기</span></button>`;
   $$('.game-tab[data-game]').forEach(b =>
@@ -55,7 +57,7 @@ function renderOverview() {
               const p = state.games[id].profile,
                 s = gameStatus(id);
               const days = periodAt(0) - periodAt(0, 0, new Date(p.registeredAt));
-              return `<article class="overview-card" data-game-name="${escapeHtml(name.toLowerCase())}"><h3><span class="status-dot ${s.color} ${s.color === 'done' ? '' : 'status-dot-count'}">${statusBadgeText(s)}</span>${escapeHtml(name)}</h3><dl><dt>현금 지출</dt><dd>${spendingText(p)}</dd><dt>이용 일수</dt><dd>경과 ${days}일 · 활동 ${p.activityDays.length}일</dd><dt>패스</dt><dd>${p.pass.active ? '활성' : '미활성'} · Lv. ${p.pass.level}</dd><dt>종료</dt><dd>${p.pass.end ? escapeHtml(new Date(p.pass.end).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })) : '미지정'}</dd>${id === 'master-duel' && !state.games[id].masterDuel?.eventDeleted && Date.now() < Date.parse(DICE_END) ? '<dt>이벤트 종료</dt><dd>9월 21일 12:59 KST</dd>' : ''}</dl><div class="card-actions"><button data-open-game="${id}">게임 열기</button><button data-settings="${id}">상세 설정</button><button data-mute="${id}">${p.mutedUntil > Date.now() ? '오늘 알람 꺼짐' : '오늘의 알람 끄기'}</button></div></article>`;
+              return `<article class="overview-card" data-game-name="${escapeHtml(name.toLowerCase())}"><h3>${statusBadgeHtml(s)}${escapeHtml(name)}</h3><dl><dt>현금 지출</dt><dd>${spendingText(p)}</dd><dt>이용 일수</dt><dd>경과 ${days}일 · 활동 ${p.activityDays.length}일</dd><dt>패스</dt><dd>${p.pass.active ? '활성' : '미활성'} · Lv. ${p.pass.level}</dd><dt>종료</dt><dd>${p.pass.end ? escapeHtml(new Date(p.pass.end).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })) : '미지정'}</dd>${id === 'master-duel' && !state.games[id].masterDuel?.eventDeleted && Date.now() < Date.parse(DICE_END) ? '<dt>이벤트 종료</dt><dd>9월 21일 12:59 KST</dd>' : ''}</dl><div class="card-actions"><button data-open-game="${id}">게임 열기</button><button data-settings="${id}">상세 설정</button><button data-mute="${id}">${p.mutedUntil > Date.now() ? '오늘 알람 꺼짐' : '오늘의 알람 끄기'}</button></div></article>`;
             }
           ).join('')}</div>`
         : `<p class="muted overview-empty">등록된 게임이 없습니다. 위의 "게임 추가" 버튼이나 사이드바의 "새 게임 만들기"로 시작하세요.</p>`
