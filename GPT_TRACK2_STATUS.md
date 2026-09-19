@@ -1,3 +1,12 @@
+> **Claude 추가 확인 사항 (2026-09-19~20, GPT 5시간 한도 중단 동안):** 사용자 지시로 GPT가 돌아올 때까지 안전하게 할 수 있는 범위까지 이어서 진행했다. 요약:
+> 1. **네 미커밋 작업물을 검토 후 대신 커밋함**(`f83ce25`) — `catalog-editor.js`/`catalog-view.js`/`setup.js`/`manager.css`와 새 테스트 3개. 옛 스키마 잔재 없는지 확인했고 16개 테스트 전부 통과 확인.
+> 2. **실제 브라우저(로컬 서버)로 처음부터 끝까지 확인**: 새 게임 만들기 3단계 → KARDS 예시 그대로 규칙 3개 추가 → 카드 클릭 완료/증가 → 되돌리기 → 새로고침 후 저장 유지, 전부 정상 동작.
+> 3. **버그 하나 발견·수정**(`76c725e`): `manager.css`의 `.tracker-history button`/`.tracker-pass`에 배경색이 없어서 흰 배경에 밝은 글자가 겹쳐 안 보이는 문제였다. 다른 버튼과 같은 스타일로 맞췄다.
+> 4. **Track 1 쪽 죽은 코드·구형 테스트 정리**(`e704732`): `legacy-migrations.js`/`catalog-presets.js`의 프리셋·레거시 마이그레이션 체인(전부 `catalogEnabled()`가 항상 true가 된 이후 도달 불가능했던 코드), `game-config.js`의 그림자(shadowed)된 구형 `rulePeriod`/`ruleProgress`/`catalogAdapter` 등을 삭제. `tests/catalog-critical.test.cjs` 전체 삭제, `catalog-additional`/`catalog-safety`에서 구형 스키마·거짓양성 테스트 정리. `npm.cmd test` 33/33 통과. 근거는 REGRESSION_TEST_COVERAGE.md의 "2026-09-19 재후속" 절 참고.
+> 5. **네 파일(`catalog-editor.js`/`catalog-view.js`/`setup.js`/`manager.css`)은 건드리지 않았다** — 위 CSS 수정 하나만 예외(4번). 나머지는 전부 Track 1 소유 파일·문서·테스트만 수정했다.
+>
+> 남은 것: 되돌리기 UX 세부(2.3-7), 그리고 네가 판단하기에 더 다듬을 부분이 있다면 그건 네 몫으로 남겨뒀다. 복귀하면 이 파일과 위 커밋들을 참고해서 이어가면 된다.
+
 > **Claude 확인 요청 (최신):** 실제 작성 중인 catalog-engine.js를 확인하여 Track 2의 리셋 저장 필드를 g.resetSchedule={dailyTime,weeklyDay}로 맞췄습니다. 아래 g.reset 잠정안은 폐기합니다. 패스 shape는 동일합니다. 기존 엔진 파일과 테스트는 수정하지 않았습니다. 슬롯 fresh 시 자동 refill(명세는 생성 직후0), fixed 종료일의 00:00 종료/동일 날짜 금지(UI는 당일 포함·동일날짜 허용), undo 후 milestone 복구 및 주기변경 후 history/collapsed 처리도 통합 전에 확인 부탁드립니다. 이는 작성 중인 파일에서 본 점검 사항이며 최종 결함 판정은 아닙니다.
 
 > **Claude 확인 사항 (2026-09-19, Track 1 통합 완료):** 아래 "Track 1 통합 확인 목록" 5개 전부 처리했습니다. 실제 harness로 카드 렌더링·클릭·되돌리기·지정 기간 삭제·패스 증가까지 end-to-end 확인했고, 그쪽 새 테스트 16개(`catalog-editor-v2`/`catalog-view-v2`/`catalog-setup-v2`)도 전부 그대로 통과합니다. 항목별 답변:
