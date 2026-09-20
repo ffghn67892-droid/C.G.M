@@ -23,6 +23,9 @@ function trackerDateValid(date) {
     new Date(date).toISOString().slice(0, 10) === date
   );
 }
+function trackerTimeValid(time) {
+  return /^([01]\d|2[0-3]):[0-5]\d$/.test(time || '');
+}
 function validateTrackerRule(rule) {
   if (!rule.name.trim() || rule.name.length > 60) throw Error('이름은 1~60자로 입력하세요.');
   if (!['daily', 'weekly', 'fixed'].includes(rule.format)) throw Error('포맷을 선택하세요.');
@@ -30,9 +33,11 @@ function validateTrackerRule(rule) {
     rule.format === 'fixed' &&
     (!trackerDateValid(rule.startDate) ||
       !trackerDateValid(rule.endDate) ||
-      rule.endDate < rule.startDate)
+      !trackerTimeValid(rule.endTime) ||
+      Date.parse(`${rule.endDate}T${rule.endTime}:00+09:00`) <=
+        Date.parse(`${rule.startDate}T00:00:00+09:00`))
   )
-    throw Error('시작일과 종료일을 확인하세요.');
+    throw Error('시작일과 종료일·종료 시각을 확인하세요.');
   if (
     rule.resetOverride &&
     (!/^([01]\d|2[0-3]):[0-5]\d$/.test(rule.resetOverride.time) ||
@@ -220,10 +225,12 @@ function mountUniversalEditor(initial, parent, initialSetup = false) {
     if (el('startDate')) {
       r.startDate = el('startDate').value;
       r.endDate = el('endDate').value;
+      r.endTime = el('endTime').value;
     }
     if (r.format !== 'fixed') {
       delete r.startDate;
       delete r.endDate;
+      delete r.endTime;
     }
     if (el('kind') && r.kind !== el('kind').value) {
       r.kind = el('kind').value;
@@ -298,7 +305,9 @@ function mountUniversalEditor(initial, parent, initialSetup = false) {
         ]) +
         (r.format === 'fixed'
           ? input('startDate', '시작일 (KST)', r.startDate, 'date') +
-            input('endDate', '종료일 (KST)', r.endDate, 'date')
+            input('endDate', '종료일 (KST)', r.endDate, 'date') +
+            input('endTime', '종료 시각 (KST)', r.endTime || '00:00', 'time') +
+            '<p class="wizard-help">이 시각이 지나면 규칙이 종료됩니다. 자동으로 정해지지 않으니 직접 입력하세요.</p>'
           : '<p class="wizard-help">게임의 기본 리셋 시각을 따릅니다.</p>');
     if (step === 2)
       body =
@@ -332,7 +341,7 @@ function mountUniversalEditor(initial, parent, initialSetup = false) {
         }`;
     }
     if (step === 4)
-      body = `<p>${escapeHtml(r.name)} · ${{ daily: '일일', weekly: '주간', fixed: '지정 기간' }[r.format]} · ${r.kind === 'slot' ? '슬롯형' : '게이지형'}</p><p>${r.kind === 'slot' ? `갱신 ${r.refillCount}개 · 최대 ${r.maxHeld}개` : `${r.min} → ${r.max} · 마일스톤 ${(r.milestones || []).join(', ') || '없음'}`}</p>${r.format === 'fixed' ? `<p>${escapeHtml(r.startDate || '')} ~ ${escapeHtml(r.endDate || '')}</p>` : `<p>리셋: ${r.resetOverride ? escapeHtml(r.resetOverride.time) : '게임 기본값'}</p>`}<p class="wizard-help">규칙 저장 버튼을 누르면 적용됩니다.</p>`;
+      body = `<p>${escapeHtml(r.name)} · ${{ daily: '일일', weekly: '주간', fixed: '지정 기간' }[r.format]} · ${r.kind === 'slot' ? '슬롯형' : '게이지형'}</p><p>${r.kind === 'slot' ? `갱신 ${r.refillCount}개 · 최대 ${r.maxHeld}개` : `${r.min} → ${r.max} · 마일스톤 ${(r.milestones || []).join(', ') || '없음'}`}</p>${r.format === 'fixed' ? `<p>${escapeHtml(r.startDate || '')} ~ ${escapeHtml(r.endDate || '')} ${escapeHtml(r.endTime || '')} KST</p>` : `<p>리셋: ${r.resetOverride ? escapeHtml(r.resetOverride.time) : '게임 기본값'}</p>`}<p class="wizard-help">규칙 저장 버튼을 누르면 적용됩니다.</p>`;
     host.innerHTML = `<h3>규칙 구성</h3><div class="rule-nav">${draft.map((x, i) => `<button data-edit-rule="${i}" aria-pressed="${selected === i}">${escapeHtml(x.name)}</button>`).join('')}<button id="addTrackerRule">항목 추가</button></div><p class="wizard-progress">${step + 1} / 5 · ${names[step]}</p><div class="form-grid">${body}</div><div class="wizard-nav">${step > 0 ? '<button id="wizardPrev">이전</button>' : ''}${step < 4 ? '<button id="wizardNext">다음</button>' : '<button id="editRuleStart">항목 수정</button>'}<button id="removeRule" class="danger">항목 삭제</button></div><p data-rule-error role="status"></p>`;
     const bind = (selector, fn) =>
       host
@@ -353,9 +362,13 @@ function mountUniversalEditor(initial, parent, initialSetup = false) {
       if (
         step === 1 &&
         r.format === 'fixed' &&
-        (!trackerDateValid(r.startDate) || !trackerDateValid(r.endDate) || r.endDate < r.startDate)
+        (!trackerDateValid(r.startDate) ||
+          !trackerDateValid(r.endDate) ||
+          !trackerTimeValid(r.endTime) ||
+          Date.parse(`${r.endDate}T${r.endTime}:00+09:00`) <=
+            Date.parse(`${r.startDate}T00:00:00+09:00`))
       )
-        throw Error('시작일과 종료일을 확인하세요.');
+        throw Error('시작일과 종료일·종료 시각을 확인하세요.');
       if (step === 3) validateTrackerRule(r);
       step++;
     });

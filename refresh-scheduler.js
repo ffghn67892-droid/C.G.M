@@ -18,7 +18,7 @@ function alertScheduleInput(g) {
 }
 // Fixed-format rules have no recurring boundary; their only future event is the end date.
 function nextRuleBoundary(g, r, now = new Date()) {
-  if (r.format === 'fixed') return dateOnlyMs(r.endDate);
+  if (r.format === 'fixed') return endMomentMs(r);
   const sched = ruleResetSchedule(g, r),
     period = rulePeriod(g, r, now),
     [h, m] = sched.time.split(':').map(Number);

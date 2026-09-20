@@ -168,7 +168,10 @@ Track 1이 새로 구현할 `catalog-engine.js`의 공개 함수/데이터 모�
   id, name,                      // 사용자가 지정한 이름
   format: 'daily' | 'weekly' | 'fixed',
   resetOverride: null | { time: 'HH:MM' } | { weekday: 0-6, time: 'HH:MM' }, // 게임 기본값을 덮어쓸 때만 존재 (2.3-3)
-  startDate, endDate,             // format:'fixed'일 때만 사용
+  startDate,                      // format:'fixed'일 때만 사용, 'YYYY-MM-DD'(KST 자정 시작)
+  endDate, endTime,                // format:'fixed'일 때만 사용. 종료 순간은 절대 자동으로
+                                    // 정하지 않는다 — endDate('YYYY-MM-DD')+endTime('HH:MM',
+                                    // KST)를 사용자가 직접 입력한 그대로 사용한다(2026-09-20 확정).
   kind: 'slot' | 'gauge',
   // kind:'slot'
   refillCount, maxHeld,

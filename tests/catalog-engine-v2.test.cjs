@@ -117,7 +117,8 @@ test('fixed-period rule marks ended after its endDate and can only be deleted on
       refillCount: 1,
       maxHeld: 1,
       startDate: '2026-09-01',
-      endDate: '2026-09-11'
+      endDate: '2026-09-11',
+      endTime: '00:00'
     }
   ]);
   assert.equal(a.run("catalogAction('kards','evt','delete-rule')"), false, 'not ended yet');
@@ -142,10 +143,42 @@ test('fixed-period rule with a future startDate blocks actions until it starts',
       refillCount: 1,
       maxHeld: 1,
       startDate: '2099-01-01',
-      endDate: '2099-02-01'
+      endDate: '2099-02-01',
+      endTime: '00:00'
     }
   ]);
   assert.equal(a.run("catalogAction('kards','evt','complete')"), false);
+});
+
+test('fixed-period end moment uses the exact user-entered endTime, not a fixed KST-midnight convention', () => {
+  const a = start();
+  seed(a, [
+    {
+      id: 'evt',
+      name: '당일 이벤트',
+      format: 'fixed',
+      kind: 'slot',
+      refillCount: 1,
+      maxHeld: 1,
+      startDate: '2026-09-11',
+      endDate: '2026-09-11',
+      endTime: '21:00'
+    }
+  ]);
+  a.setTime('2026-09-11T20:59:59+09:00');
+  a.run('syncGame("kards")');
+  assert.equal(
+    a.run('ruleProgress(state.games.kards, catalogRules(state.games.kards)[0]).ended'),
+    false,
+    'same-day event still running one second before its own endTime'
+  );
+  a.setTime('2026-09-11T21:00:00+09:00');
+  a.run('syncGame("kards")');
+  assert.equal(
+    a.run('ruleProgress(state.games.kards, catalogRules(state.games.kards)[0]).ended'),
+    true,
+    'ends at the exact entered endTime, not at KST midnight'
+  );
 });
 
 test('universalStatus counts only true remaining work and flags urgent when a slot is at capacity', () => {

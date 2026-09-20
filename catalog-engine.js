@@ -14,6 +14,13 @@ function dateOnlyMs(dateStr) {
   return Date.parse(dateStr.length === 10 ? dateStr + 'T00:00:00+09:00' : dateStr);
 }
 
+// A fixed-period rule's end moment is never assumed (e.g. "always midnight") - the user
+// types the exact KST time themselves (endDate + endTime), so there is no ambiguity
+// between "ends at the start of endDate" and "ends at the end of endDate".
+function endMomentMs(r) {
+  return Date.parse(`${r.endDate}T${r.endTime}:00+09:00`);
+}
+
 function validateCatalog(rules) {
   if (!Array.isArray(rules) || rules.length > 100) throw Error('규칙은 0~100개로 설정하세요.');
   const ids = new Set(),
@@ -41,9 +48,10 @@ function validateCatalog(rules) {
       if (
         !isoDate(r.startDate) ||
         !isoDate(r.endDate) ||
-        Date.parse(r.startDate) >= Date.parse(r.endDate)
+        !time(r.endTime) ||
+        endMomentMs(r) <= dateOnlyMs(r.startDate)
       )
-        throw Error('지정 기간의 시작·종료일을 확인하세요.');
+        throw Error('지정 기간의 시작일·종료일·종료 시각을 확인하세요.');
     }
     if (r.kind === 'slot') {
       if (!num(r.refillCount, 1, 100) || !num(r.maxHeld, 1, 1000) || r.refillCount > r.maxHeld)
@@ -97,7 +105,7 @@ function rulePeriod(g, r, now = new Date()) {
 }
 
 function ruleScheduleText(g, r) {
-  if (r.format === 'fixed') return `지정 기간 ${r.startDate} ~ ${r.endDate}`;
+  if (r.format === 'fixed') return `지정 기간 ${r.startDate} ~ ${r.endDate} ${r.endTime} KST`;
   const sched = ruleResetSchedule(g, r);
   return r.format === 'daily'
     ? `매일 ${sched.time} KST`
@@ -117,7 +125,7 @@ function syncUniversalCatalog(g, now = new Date()) {
   for (const r of catalogRules(g)) {
     const p = ruleProgress(g, r);
     if (r.format === 'fixed') {
-      p.ended = dateOnlyMs(r.endDate) <= now.getTime();
+      p.ended = endMomentMs(r) <= now.getTime();
       continue;
     }
     const period = rulePeriod(g, r, now),

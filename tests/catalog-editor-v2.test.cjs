@@ -49,13 +49,14 @@ test('new slot and gauge definitions contain only tracker fields', () => {
 test('fixed dates, integer limits and milestone bounds are validated before saving', () => {
   const a = app();
   a.run(
-    "var r = newUniversalRule(); r.format = 'fixed'; r.startDate = '2026-09-01'; r.endDate = '2026-09-30'"
+    "var r = newUniversalRule(); r.format = 'fixed'; r.startDate = '2026-09-01'; r.endDate = '2026-09-30'; r.endTime = '00:00'"
   );
   assert.doesNotThrow(() => a.run('validateTrackerRule(r)'));
   for (const changes of [
     "r.endDate = '2026-02-30'",
     "r.endDate = '2026-08-01'",
-    "r.endDate = '2026-09-30'; r.maxHeld = 1.5"
+    "r.endDate = '2026-09-30'; r.endTime = '25:00'",
+    "r.endDate = '2026-09-30'; r.endTime = '00:00'; r.maxHeld = 1.5"
   ]) {
     a.run(changes);
     assert.throws(() => a.run('validateTrackerRule(r)'));
