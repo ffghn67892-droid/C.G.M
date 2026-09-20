@@ -23,7 +23,8 @@ function validateCatalog(rules) {
       !['__proto__', 'constructor', 'prototype'].includes(id);
   const num = (n, min, max) => Number.isSafeInteger(n) && n >= min && n <= max;
   const time = t => typeof t === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(t);
-  const isoDate = s => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s) && Number.isFinite(Date.parse(s));
+  const isoDate = s =>
+    typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s) && Number.isFinite(Date.parse(s));
   for (const r of rules) {
     if (!validId(r.id) || ids.has(r.id)) throw Error('규칙 ID가 중복되거나 올바르지 않습니다.');
     ids.add(r.id);
@@ -37,7 +38,11 @@ function validateCatalog(rules) {
         throw Error('리셋 요일 재지정을 확인하세요.');
     }
     if (r.format === 'fixed') {
-      if (!isoDate(r.startDate) || !isoDate(r.endDate) || Date.parse(r.startDate) >= Date.parse(r.endDate))
+      if (
+        !isoDate(r.startDate) ||
+        !isoDate(r.endDate) ||
+        Date.parse(r.startDate) >= Date.parse(r.endDate)
+      )
         throw Error('지정 기간의 시작·종료일을 확인하세요.');
     }
     if (r.kind === 'slot') {
@@ -117,7 +122,9 @@ function syncUniversalCatalog(g, now = new Date()) {
     }
     const period = rulePeriod(g, r, now),
       fresh = p.period === undefined,
-      elapsed = fresh ? 1 : Math.max(0, Math.floor((period - p.period) / (r.format === 'weekly' ? 7 : 1)));
+      elapsed = fresh
+        ? 1
+        : Math.max(0, Math.floor((period - p.period) / (r.format === 'weekly' ? 7 : 1)));
     if (fresh || elapsed) {
       if (r.kind === 'slot') p.held = Math.min(r.maxHeld, p.held + elapsed * r.refillCount);
       else {
@@ -127,7 +134,8 @@ function syncUniversalCatalog(g, now = new Date()) {
       p.period = period;
     }
   }
-  if (g.pass && g.pass.endDate && now.getTime() >= dateOnlyMs(g.pass.endDate)) g.pass.active = false;
+  if (g.pass && g.pass.endDate && now.getTime() >= dateOnlyMs(g.pass.endDate))
+    g.pass.active = false;
   return g;
 }
 

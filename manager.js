@@ -11,7 +11,8 @@ function renderManaged() {
     state.activeGame === 'overview'
       ? '한국 시간(KST)'
       : catalogEnabled(state.activeGame)
-        ? [...new Set(catalogRules(data()).map(r => ruleScheduleText(data(), r)))].join(' · ') || '한국 시간(KST)'
+        ? [...new Set(catalogRules(data()).map(r => ruleScheduleText(data(), r)))].join(' · ') ||
+          '한국 시간(KST)'
         : scheduleLabel(state.activeGame);
   let toolbar = $('#gameToolbar');
   if (!toolbar) {

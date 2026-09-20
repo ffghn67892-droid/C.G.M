@@ -8,9 +8,11 @@ const { start } = require('./harness.cjs');
 // longer applies - see TODO_TRACKER_REDESIGN.md and REGRESSION_TEST_COVERAGE.md. These
 // two are generic scheduler infrastructure, unrelated to rule schema, and still pass.
 
-test("regression: changed reset boundary rebuilds deadline once", () => {
+test('regression: changed reset boundary rebuilds deadline once', () => {
   const a = start();
-  a.run('globalThis.rebuilds=0;const originalDeadline=rebuildRefreshDeadline;rebuildRefreshDeadline=function(...args){rebuilds++;return originalDeadline(...args)}');
+  a.run(
+    'globalThis.rebuilds=0;const originalDeadline=rebuildRefreshDeadline;rebuildRefreshDeadline=function(...args){rebuilds++;return originalDeadline(...args)}'
+  );
   a.nextDay();
   a.run('synchronizeScheduledGames()');
   assert.equal(a.run('rebuilds'), 1);

@@ -22,11 +22,20 @@ function renderNavigation() {
   const registered = GAMES.filter(([id]) => state.games[id]?.profile?.registeredAt);
   $('#gameSwitcher').innerHTML =
     `<button class="game-tab ${state.activeGame === 'overview' ? 'active' : ''}" data-game="overview" role="tab" aria-selected="${state.activeGame === 'overview'}"><span class="game-tab-mark lime">⌂</span><span>메인</span></button>` +
-    registered.map(([id, name, mark, color]) => {
-      const status = gameStatus(id);
-      const ariaLabel = status.color === 'urgent' ? '오늘 확인' : status.color === 'warning' ? '진행 권장' : status.color === 'pending' ? '진행 중' : status.label;
-      return `<button class="game-tab ${state.activeGame === id ? 'active' : ''}" data-game="${id}" role="tab" aria-selected="${state.activeGame === id}"><span class="game-tab-mark ${color}">${mark}</span><span>${escapeHtml(name)}</span>${statusBadgeHtml(status, ariaLabel)}</button>`;
-    }).join('') +
+    registered
+      .map(([id, name, mark, color]) => {
+        const status = gameStatus(id);
+        const ariaLabel =
+          status.color === 'urgent'
+            ? '오늘 확인'
+            : status.color === 'warning'
+              ? '진행 권장'
+              : status.color === 'pending'
+                ? '진행 중'
+                : status.label;
+        return `<button class="game-tab ${state.activeGame === id ? 'active' : ''}" data-game="${id}" role="tab" aria-selected="${state.activeGame === id}"><span class="game-tab-mark ${color}">${mark}</span><span>${escapeHtml(name)}</span>${statusBadgeHtml(status, ariaLabel)}</button>`;
+      })
+      .join('') +
     `<button class="game-tab" id="newGameTab" type="button"><span class="game-tab-mark lime">+</span><span>새 게임 만들기</span></button>`;
   $$('.game-tab[data-game]').forEach(b =>
     b.addEventListener('click', () => {
@@ -52,15 +61,15 @@ function renderOverview() {
   $('#questList').innerHTML =
     `<div class="overview-heading"><h2>메인</h2><input type="search" id="gameSearch" placeholder="게임 검색" aria-label="게임 검색" value="${escapeHtml(searchTerm)}" /><label><input type="checkbox" id="trayOption" ${state.tray ? 'checked' : ''} />닫을 때 트레이에 유지</label></div>${
       registered.length
-        ? `<div class="overview-grid">${registered.map(
-            ([id, name]) => {
+        ? `<div class="overview-grid">${registered
+            .map(([id, name]) => {
               const p = state.games[id].profile,
                 pass = state.games[id].pass,
                 s = gameStatus(id);
               const days = periodAt(0) - periodAt(0, 0, new Date(p.registeredAt));
               return `<article class="overview-card" data-game-name="${escapeHtml(name.toLowerCase())}"><h3>${statusBadgeHtml(s)}${escapeHtml(name)}</h3><dl><dt>현금 지출</dt><dd>${spendingText(p)}</dd><dt>이용 일수</dt><dd>경과 ${days}일 · 활동 ${p.activityDays.length}일</dd>${pass ? `<dt>패스</dt><dd>${pass.active ? '활성' : '미활성'} · Lv. ${pass.level || 0}</dd><dt>종료</dt><dd>${pass.endDate ? escapeHtml(pass.endDate) : '미지정'}</dd>` : ''}${id === 'master-duel' && !state.games[id].masterDuel?.eventDeleted && Date.now() < Date.parse(DICE_END) ? '<dt>이벤트 종료</dt><dd>9월 21일 12:59 KST</dd>' : ''}</dl><div class="card-actions"><button data-open-game="${id}">게임 열기</button><button data-settings="${id}">상세 설정</button><button data-mute="${id}">${p.mutedUntil > Date.now() ? '오늘 알람 꺼짐' : '오늘의 알람 끄기'}</button></div></article>`;
-            }
-          ).join('')}</div>`
+            })
+            .join('')}</div>`
         : `<p class="muted overview-empty">등록된 게임이 없습니다. 위의 "게임 추가" 버튼이나 사이드바의 "새 게임 만들기"로 시작하세요.</p>`
     }<p class="muted" id="gameSearchEmpty" hidden>일치하는 게임이 없습니다.</p><p class="muted">트레이 유지 중에만 창을 닫아도 알림이 실행됩니다. 완전 종료하거나 PC를 끄면 알림이 멈춥니다.</p>`;
   const applyGameSearch = () => {
