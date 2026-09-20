@@ -1,4 +1,39 @@
 // Track 2 consumes the slot/gauge contract in TODO_TRACKER_REDESIGN.md §10.
+async function exportTrackerData() {
+  const content = JSON.stringify(serializeStateForExport(), null, 2);
+  if (typeof content !== 'string') throw Error('내보낼 데이터를 확인할 수 없습니다.');
+  const date = new Date(),
+    stamp = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`,
+    filename = `deckroom-export-${stamp}.json`;
+  if (window.deckroom) {
+    const result = await window.deckroom.saveTextFile(filename, content);
+    if (result?.canceled) return '내보내기를 취소했습니다.';
+    if (!result?.saved) throw Error(result?.error || '파일을 저장하지 못했습니다.');
+    return '데이터 파일을 저장했습니다.';
+  }
+  const url = URL.createObjectURL(new Blob([content], { type: 'application/json;charset=utf-8' })),
+    link = document.createElement('a');
+  try {
+    link.href = url;
+    link.download = filename;
+    link.hidden = true;
+    document.body.appendChild(link);
+    link.click();
+  } finally {
+    link.remove();
+    // Allow the browser to consume the Blob before releasing its URL.
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+  return '다운로드를 요청했습니다. 브라우저의 다운로드 목록을 확인하세요.';
+}
+function trackerConversionNotice(g) {
+  const notices = Array.isArray(g.profile?.conversionNotice)
+    ? g.profile.conversionNotice.filter(message => typeof message === 'string' && message.trim())
+    : [];
+  const signature = JSON.stringify(notices);
+  if (!notices.length || g.profile.conversionNoticeAcknowledged === signature) return '';
+  return `<section class="tracker-conversion-notice" role="status" aria-label="저장 데이터 변환 안내"><strong>저장 데이터 변환 안내</strong><ul>${notices.map(message => `<li>${escapeHtml(message)}</li>`).join('')}</ul><button data-dismiss-conversion>안내 닫기</button></section>`;
+}
 function trackerRuleCard(r, p) {
   const ended = r.format === 'fixed' && p.ended;
   const value = r.kind === 'slot' ? p.held : p.value;
@@ -51,7 +86,25 @@ function renderUniversalGame(id) {
     ? `<button class="tracker-pass" data-catalog-action="bump-pass-level" data-rule-id="" aria-label="패스 레벨 ${g.pass.level || 0}, 1 증가"><span>패스 레벨</span><strong>${g.pass.level || 0}</strong><span>+1</span>${g.pass.endDate ? `<small>종료 ${escapeHtml(g.pass.endDate)}</small>` : ''}</button>`
     : '';
   const host = $('#questList');
-  host.innerHTML = `${undo}<div class="tracker-grid">${cards}</div>${!cards ? '<p class="tracker-empty" role="status">남은 할 일이 없습니다. 규칙과 수동 추가는 상세 설정에서 관리할 수 있습니다.</p>' : ''}${pass}`;
+  const notice = trackerConversionNotice(g);
+  host.innerHTML = `${notice}${undo}<div class="tracker-grid">${cards}</div>${!cards ? '<p class="tracker-empty" role="status">남은 할 일이 없습니다. 규칙과 수동 추가는 상세 설정에서 관리할 수 있습니다.</p>' : ''}${pass}`;
+  if (notice)
+    host.querySelector('[data-dismiss-conversion]').addEventListener('click', () => {
+      try {
+        runCatalogAction(id, game => {
+          game.profile.conversionNoticeAcknowledged = JSON.stringify(
+            game.profile.conversionNotice.filter(
+              message => typeof message === 'string' && message.trim()
+            )
+          );
+          return true;
+        });
+        renderUniversalGame(id);
+        host.querySelector('button')?.focus();
+      } catch (error) {
+        toast(error.message);
+      }
+    });
   host.querySelectorAll('[data-catalog-action]').forEach(button => {
     button.addEventListener('click', () => {
       const action = button.dataset.catalogAction;

@@ -2,6 +2,8 @@
 
 # DECKROOM 작업 지침
 
+> 2026-09-21 Stage A Track2: 외부 JSON 내보내기·IPC, 일정 저장 API 연결, 변환 안내 구현 및 해당 범위 검증 완료. 기본 검사 55개와 별도 신규 검사 15개 통과. 신규 두 테스트는 기본 명령 등록 전이므로 [GPT_STAGE_A_TRACK2_REPORT.md](GPT_STAGE_A_TRACK2_REPORT.md)의 별도 명령도 실행한다. Stage A 전체 완료 판정과 검증 한계는 이 보고서와 Track1 결과를 함께 확인한다. 위 L1 검사 수는 당시 기록이다.
+
 > 현재 상태는 [HANDOFF.md](HANDOFF.md)를 참고하십시오.
 
 현재 상태: **A~E8·F·G, AI 작업 친화적 구조 개편 H1~H5, 할 일 추적기 개편 L1 완료**. 최종 구조·검증·복구는 [REFACTOR_STAGE_G.md](REFACTOR_STAGE_G.md), L1의 협업 결과는 [GPT_TRACK2_STATUS.md](GPT_TRACK2_STATUS.md)를 따른다. H1~H5 경위는 `HANDOFF.md`의 "AI 작업 친화적 구조 개편 완료 상태" 절을 따른다. 이전 단계 문서의 승인 대기 상태는 역사 기록이다.

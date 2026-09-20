@@ -140,10 +140,12 @@ button:disabled { opacity: 0.45; cursor: default !important; }
 .catalog-mission .catalog-actions { display: flex; flex-wrap: wrap; }
 
 /* Slot/gauge tracker: each active card is one native keyboard-accessible button. */
+.tracker-conversion-notice { margin-bottom: 16px; padding: 14px 18px; border: 1px solid rgb(76, 91, 69); border-radius: 7px; background: rgb(30, 39, 29); font-size: 14px; line-height: 1.6; overflow-wrap: anywhere; }
+.tracker-conversion-notice ul { padding-left: 20px; }
 .tracker-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; align-items: stretch; }
 .tracker-card { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 8px; min-width: 0; min-height: 132px; padding: 18px; text-align: left; white-space: normal; border: 1px solid rgb(76, 91, 69); border-radius: 12px; background: rgb(30, 39, 29); color: inherit; }
 button.tracker-card:hover { border-color: var(--lime); background: rgb(43, 55, 34); }
-.tracker-card:focus-visible, .tracker-history button:focus-visible, .tracker-pass:focus-visible { outline: 2px solid var(--lime); outline-offset: 3px; }
+.tracker-card:focus-visible, .tracker-history button:focus-visible, .tracker-pass:focus-visible, .tracker-conversion-notice button:focus-visible { outline: 2px solid var(--lime); outline-offset: 3px; }
 .tracker-name { font-size: 14px; font-weight: 650; overflow-wrap: anywhere; }
 .tracker-number { font-size: 32px; line-height: 1.1; color: var(--lime); font-variant-numeric: tabular-nums; }
 .tracker-number small { font-size: 16px; color: var(--muted); }
@@ -155,7 +157,7 @@ button.tracker-card:hover { border-color: var(--lime); background: rgb(43, 55, 3
 .tracker-ended { border-style: dashed; }
 .tracker-ended .tracker-number { color: var(--muted); }
 .tracker-history { margin-bottom: 16px; display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-start; font-size: 12px; }
-.tracker-history button, .tracker-pass { background: rgb(53, 67, 47); border: 1px solid rgb(94, 118, 83); color: rgb(237, 243, 232); border-radius: 7px; padding: 8px 12px; cursor: pointer; }
+.tracker-history button, .tracker-pass, .tracker-conversion-notice button { background: rgb(53, 67, 47); border: 1px solid rgb(94, 118, 83); color: rgb(237, 243, 232); border-radius: 7px; padding: 8px 12px; cursor: pointer; }
 .tracker-history details { padding: 8px; color: var(--muted); background: rgb(30, 39, 29); border: 1px solid rgb(76, 91, 69); border-radius: 7px; }
 .tracker-history li { padding: 3px 0; }
 .tracker-empty { color: var(--muted); padding: 24px 0; line-height: 1.7; }

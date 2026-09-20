@@ -2,6 +2,8 @@
 
 # DECKROOM 인수인계
 
+> 2026-09-21 Stage A Track2 구현·해당 범위 검증 완료: 외부 JSON 내보내기(Windows 저장/취소 및 웹 다운로드), 일정 저장 API 연결, 변환 안내. Track1 `44ee683`과 실제 API 연결 확인. 기본 테스트 55/55, 별도 신규 테스트 15/15 통과. 신규 두 테스트의 기본 명령 등록은 공용 패키지 담당자에게 인계한다. 상세 계약·검증 한계·복구는 [GPT_STAGE_A_TRACK2_REPORT.md](GPT_STAGE_A_TRACK2_REPORT.md). 아래 L1 및 이전 단계의 검사 수는 당시 기록이며 Stage A 전체 완료를 뜻하지 않는다.
+
 > 후속 회귀 수정 완료(2026-09-19): dateKey 이관·초기 구매 지출·편집 일정 표시·단계 캐시·경계 중복 계산을 수정했다. 결과/복구: [REGRESSION_FIXES.md](docs/history/REGRESSION_FIXES.md), 당시 제외 검사 74개 대응: [REGRESSION_TEST_COVERAGE.md](REGRESSION_TEST_COVERAGE.md).
 
 > AI 작업 친화적 구조 개편 완료(2026-09-19, Stage H1~H5): git 저장소 도입, package.json 배포 목록 동기화, 문서 아카이브·배너 단일화, 테스트 스위트 정리(제외 파일 10개 삭제·통과 검사 10개 이관), 전체 소스 19개 파일 Prettier 재포맷. 상세는 아래 "AI 작업 친화적 구조 개편 완료 상태" 절을 따른다.

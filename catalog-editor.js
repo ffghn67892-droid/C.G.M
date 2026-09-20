@@ -115,8 +115,22 @@ function openUniversalSettings(id) {
       .map((r, i) => `<button data-rule-detail="${i}">${escapeHtml(r.name)}</button>`)
       .join(
         ''
-      )}</div><button id="editUniversalRules">규칙 구성</button><h3>알림</h3><label class="check-field"><input id="resetAlert" type="checkbox" ${g.profile?.alerts?.reset ? 'checked' : ''} />갱신 알림</label><label class="check-field"><input id="fullAlert" type="checkbox" ${g.profile?.alerts?.full ? 'checked' : ''} />보유 상한 알림</label><h3>현금 지출</h3><div class="form-grid">${field('amount', '금액', 0, 100000000)}${field('currency', '통화', 'KRW', 0, 'text')}${field('item', '항목', '', 0, 'text')}</div><button id="recordUniversalSpending">지출 기록</button><p>${escapeHtml(spendingText(g.profile))}</p><button id="resetUniversalGame" class="danger">이 게임 전체 초기화</button>`
+      )}</div><button id="editUniversalRules">규칙 구성</button><h3>알림</h3><label class="check-field"><input id="resetAlert" type="checkbox" ${g.profile?.alerts?.reset ? 'checked' : ''} />갱신 알림</label><label class="check-field"><input id="fullAlert" type="checkbox" ${g.profile?.alerts?.full ? 'checked' : ''} />보유 상한 알림</label><h3>데이터 보관</h3><p class="wizard-help">모든 게임의 데이터를 JSON 파일로 내보냅니다.</p><button id="exportTrackerData">데이터 내보내기</button><p id="trackerExportStatus" role="status" aria-live="polite"></p><h3>현금 지출</h3><div class="form-grid">${field('amount', '금액', 0, 100000000)}${field('currency', '통화', 'KRW', 0, 'text')}${field('item', '항목', '', 0, 'text')}</div><button id="recordUniversalSpending">지출 기록</button><p>${escapeHtml(spendingText(g.profile))}</p><button id="resetUniversalGame" class="danger">이 게임 전체 초기화</button>`
   );
+  $('#exportTrackerData').addEventListener('click', async event => {
+    const button = event.currentTarget,
+      status = $('#trackerExportStatus');
+    if (button.disabled) return;
+    button.disabled = true;
+    status.textContent = '내보내는 중…';
+    try {
+      status.textContent = await exportTrackerData();
+    } catch (error) {
+      status.textContent = `내보내지 못했습니다: ${error.message}`;
+    } finally {
+      button.disabled = false;
+    }
+  });
   $('#trackerPassActive').addEventListener('change', () => {
     $('#trackerPassDates').hidden = !$('#trackerPassActive').checked;
   });
@@ -149,8 +163,11 @@ function openUniversalSettings(id) {
           (purchaseDate && endDate && endDate < purchaseDate))
       )
         throw Error('패스 구매일과 종료일을 확인하세요.');
-      runCatalogAction(id, game => {
-        game.resetSchedule = { dailyTime: time, weeklyDay: weekday };
+      // Stage A: let the engine commit settings once, including schedule revisions.
+      // A second runCatalogAction/save after this call could partially commit settings.
+      const previous = structuredClone(state.games[id]);
+      try {
+        const game = state.games[id];
         game.pass = active
           ? { active: true, purchaseDate, endDate, level: game.pass?.level || 0 }
           : null;
@@ -159,8 +176,11 @@ function openUniversalSettings(id) {
           reset: $('#resetAlert').checked,
           full: $('#fullAlert').checked
         };
-        return true;
-      });
+        updateResetSchedule(id, { dailyTime: time, weeklyDay: weekday });
+      } catch (error) {
+        state.games[id] = previous;
+        throw error;
+      }
       closeDialog();
       renderAll();
     } catch (error) {
