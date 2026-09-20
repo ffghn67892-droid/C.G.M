@@ -101,7 +101,13 @@ function award(id, key, rewards, source = '퀘스트', initial = false) {
   return true;
 }
 function migrateStore() {
-  if (state.version === 2) return;
+  if (state.version !== 2) migrateRewardLedgerStore();
+  // Runs on every boot regardless of state.version, and is independently idempotent per
+  // game via g.catalogVersion (see legacy-migrations.js) - the reward-ledger migration
+  // above and the catalog schema conversion below are two separate version axes.
+  convertAllLegacyCatalogs();
+}
+function migrateRewardLedgerStore() {
   localStorage.setItem('deckroom-backup-v1', JSON.stringify(state));
   for (const [id] of GAMES) {
     const g = (state.games[id] ||= freshGame());

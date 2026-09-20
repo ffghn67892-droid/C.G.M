@@ -176,7 +176,13 @@ Track 1이 새로 구현할 `catalog-engine.js`의 공개 함수/데이터 모�
   // kind:'slot'
   refillCount, maxHeld,
   // kind:'gauge'
-  min, max, milestones: number[]  // 오름차순 정렬된 마일스톤 값 목록 (구간 보상 지점, 2.3-2)
+  min, max, milestones: number[],  // 오름차순 정렬된 마일스톤 값 목록 (구간 보상 지점, 2.3-2)
+  revision: number                 // Stage A(2026-09-20): 1부터 시작. format/refillCount/
+                                    // maxHeld/min/max/milestones/startDate/endDate/endTime/
+                                    // resetOverride 중 하나라도 바뀌면 +1. 이름·순서·kind는
+                                    // 절대 영향 없음(kind는 애초에 변경 자체가 거부됨).
+                                    // updateCatalog가 편집 시 자동 계산 - Track 2는 절대
+                                    // 직접 쓰지 않는다. 없으면(구버전 저장) 1로 간주.
 }
 ```
 
@@ -201,9 +207,18 @@ Track 1이 새로 구현할 `catalog-engine.js`의 공개 함수/데이터 모�
 ```js
 resetSchedule: { dailyTime: 'HH:MM', weeklyDay: 0-6 },  // 3절의 게임 기본 리셋값, 게임 생성 시 필수 입력
 pass: null | { active: boolean, purchaseDate: 'YYYY-MM-DD', endDate: 'YYYY-MM-DD', level: number },
-actionHistory: [{ ruleId, kind: 'slot'|'gauge', delta: number, at: number }, ...]  // 최근 20개
+actionHistory: [{ ruleId, revision: number, periodKey: number|null, kind: 'slot'|'gauge', delta: number, at: number }, ...]  // 최근 20개
+catalogVersion: number,           // Stage A: 2 = 현재 슬롯/게이지 스키마. 1 이하나 없음 = 변환 대상
+legacyCatalogBackup?: object[],   // Stage A: catalogVersion 1 → 2 변환 시 원본 규칙 배열 보관(복구용)
+profile: {
+  conversionNotice?: string[]     // Stage A: 변환 중 옮길 수 없었던 항목이나 진행도 안내. 있으면
+                                   // Track 2가 게임 화면에 1회성 배너로 보여준다(§7 참고)
+  // ...(기존 필드 그대로)
+}
 ```
 `pass`는 구매 안 함/건너뛰기 시 `null`. `level`은 `'bump-pass-level'` 액션으로만 오르는 수동 카운터(2.3-4).
+
+**Stage A(2026-09-20) `actionHistory` 필드 추가**: `revision`(그 시점 규칙의 `revision`)과 `periodKey`(그 시점 `rulePeriod(g,r)` 값, `format:'fixed'`는 항상 `null`)가 새로 추가됐다. `'undo'`는 이제 최신 항목을 꺼낸 뒤 규칙이 종료됐거나(`format:'fixed'`&&`ended`) `revision`/`periodKey`가 지금과 다르면 진행도를 건드리지 않고 그냥 버린다(기록이 없던 옛 항목도 이 비교에서 항상 걸러진다) - Track 2 쪽 호출 방식은 바뀌지 않는다.
 
 ### 규칙별 리셋 재지정 — `ruleResetSchedule(g, r)` / `rulePeriod(g, r, now)`
 
@@ -213,10 +228,10 @@ actionHistory: [{ ruleId, kind: 'slot'|'gauge', delta: number, at: number }, ...
 
 | action | 대상 | 동작 |
 |---|---|---|
-| `'complete'` | slot | `held -= 1` (0 이하 방지), 실행취소 기록에 push |
-| `'increment'` | gauge | `value += 1` (max clamp), 마일스톤 판정, 실행취소 기록에 push |
-| `'undo'` | 무관(`ruleId`는 무시하고 기록의 마지막 항목만 봄) | `actionHistory`의 마지막 항목을 꺼내 반대로 적용 |
-| `'manual-add'` / `'manual-remove'` | slot | 상세 설정 화면 전용(2.3-10). maxHeld/0 clamp 동일 적용 |
+| `'complete'` | slot | `held -= 1` (0 이하 방지), 실행취소 기록에 push. `format:'fixed'`가 종료됐으면 거부(Stage A) |
+| `'increment'` | gauge | `value += 1` (max clamp), 마일스톤 판정, 실행취소 기록에 push. `format:'fixed'`가 종료됐으면 거부(Stage A) |
+| `'undo'` | 무관(`ruleId`는 무시하고 기록의 마지막 항목만 봄) | `actionHistory`의 마지막 항목을 꺼내 반대로 적용. 종료됐거나 `revision`/`periodKey`가 안 맞으면 무시(Stage A) |
+| `'manual-add'` / `'manual-remove'` | slot | 상세 설정 화면 전용(2.3-10). maxHeld/0 clamp 동일 적용. 종료돼도 계속 가능(관리 동작). 이 규칙의 기존 `actionHistory` 항목을 무효화(Stage A) |
 | `'set-fold-target'` | gauge | `payload.value`로 `foldTarget` 설정, `null`이면 해제 |
 | `'delete-rule'` | format:'fixed' & `ended===true`인 경우만 | 규칙 자체와 그 진행도를 제거 (2.3-1 삭제 버튼) |
 | `'bump-pass-level'` | 게임 메타데이터(`ruleId`는 무시, 빈 문자열로 호출) | `g.pass.level += 1` (수동, 2.3-4). `g.pass`가 `null`이면 실패 |
@@ -239,6 +254,22 @@ actionHistory: [{ ruleId, kind: 'slot'|'gauge', delta: number, at: number }, ...
 기존 `validateRuleCatalog`/`updateCatalog`/`runCatalogAction` 공개 함수 이름은 그대로 유지했다(Track 2가 이미 이 이름으로 저장 흐름을 짜뒀음). `updateCatalog`는 저장 시: (1) `kind`가 바뀌는 편집은 거부, (2) 남아있는 모든 규칙의 진행도를 새 용량/범위로 다시 clamp(`held`는 `maxHeld` 이하로, `value`는 `[min,max]` 안으로), (3) 삭제된 규칙의 진행도와 `actionHistory` 항목을 정리한다.
 
 **실행취소 기록**: `state.games[id].actionHistory`에 최근 20개의 `{ ruleId, kind, delta, at }`를 쌓는 배열. Track 2는 이 배열을 읽어 "실행취소" UI(최근 몇 개를 순서대로 되돌리는 목록)를 그리고, 되돌릴 항목을 고르면 `catalogAction(id, ruleId, 'undo')`를 호출한다(어떤 `ruleId`를 넘기든 실제로는 기록의 마지막 항목만 되돌아간다). 배열 자체의 관리(push/pop, 길이 제한, 편집 시 정리)는 Track 1(엔진)이 전담한다.
+
+### 게임 기본 일정 저장 — `updateResetSchedule(gameId, { dailyTime, weeklyDay })` (Stage A, 2026-09-20)
+
+Track 2는 게임 설정 화면에서 `game.resetSchedule = {...}`를 직접 대입하지 말고 이 함수를 호출한다. 시각/요일 형식이 잘못되면 던진다. 내부적으로 이전 일정과 비교해 **실제로 유효 일정이 바뀐 규칙만** `revision`을 올린다(지정 기간·`resetOverride` 있는 규칙은 게임 기본값과 무관하므로 항상 제외). 저장 실패 시 일정과 revision 모두 이전 상태로 복구된다(`runCatalogAction` 재사용). PROJECT_DEVELOPMENT_PLAN.md §7.3의 판정표가 정확한 계약이다.
+
+### 내보내기 — `serializeStateForExport()` (Stage A, 2026-09-20)
+
+`{ schemaVersion, exportedAt, games }`를 반환한다. `games`는 `state.games`의 완전한 복제본(진행도·일정·패스·기록 전부 포함) - 내보내기 UI는 이 값을 그대로 `JSON.stringify`해 파일로 저장하면 된다. 가져오기(역방향) 함수는 이번 단계(A) 범위가 아니다(C에서 추가).
+
+### 옛 저장 변환 — `convertLegacyCatalog(g)` / `convertAllLegacyCatalogs()` (Stage A, 2026-09-20, `legacy-migrations.js`)
+
+`migrateStore()`가 매 부팅마다 호출하며, 게임별로 `catalogVersion`을 통해 멱등이다(이미 2면 손대지 않음). Track 2는 이 함수들을 직접 호출할 일이 없다 - 결과만 `g.profile.conversionNotice`(문자열 배열, 없으면 알릴 것 없음)로 읽어 1회성 배너를 띄우면 된다. 변환 범위와 못 옮기는 것의 정확한 목록은 `legacy-migrations.js` 헤더 주석과 PROJECT_DEVELOPMENT_PLAN.md §3.1을 참고.
+
+---
+
+**Stage A 통합 확인(2026-09-20)**: 위 갱신 사항(`revision`/`periodKey`/종료 게이팅/`updateResetSchedule`/`serializeStateForExport`/옛 저장 변환)을 Track 1이 구현했고, `tests/catalog-stage-a-v2.test.cjs`(15개, 기존 40개에 추가)로 검증했다 - `npm test` 55/55 통과. KARDS 프리셋의 주간 상자 규칙에 `resetOverride: { weekday: 3, time: '09:00' }`도 함께 반영(PROJECT_DEVELOPMENT_PLAN.md §3.4/§7.2, catalog-presets.js).
 
 ---
 

@@ -43,6 +43,11 @@ function updateCatalog(gameId, rules) {
       const before = old.find(x => x.id === r.id);
       if (before && before.kind !== r.kind)
         throw Error('기존 규칙의 형태는 바꿀 수 없습니다. 새 규칙을 추가하세요.');
+      r.revision = !before
+        ? 1
+        : ruleRevisionKey(before) === ruleRevisionKey(r)
+          ? (before.revision ?? 1)
+          : (before.revision ?? 1) + 1;
       const p = ruleProgress(g, r);
       if (r.kind === 'slot') p.held = Math.min(p.held, r.maxHeld);
       else p.value = Math.min(Math.max(p.value, r.min), r.max);

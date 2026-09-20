@@ -116,6 +116,24 @@ function ruleStarted(r, now = Date.now()) {
   return r.format !== 'fixed' || !r.startDate || dateOnlyMs(r.startDate) <= now;
 }
 
+// A rule's "value signature" for revision bumps (PROJECT_DEVELOPMENT_PLAN.md §7.2): only
+// fields that change what the rule actually does count. Name, array order and foldTarget
+// (a ruleProgress field, never part of r) never bump this.
+function ruleRevisionKey(r) {
+  return JSON.stringify([
+    r.format,
+    r.refillCount,
+    r.maxHeld,
+    r.min,
+    r.max,
+    r.milestones,
+    r.startDate,
+    r.endDate,
+    r.endTime,
+    r.resetOverride
+  ]);
+}
+
 // Period rollover: slot refills by refillCount per elapsed period (clamped to maxHeld,
 // leftover held carries over — never reset to 0). Gauge resets to min and clears
 // achievedMilestones each period (foldTarget is a standing preference and is never
@@ -168,6 +186,12 @@ function catalogAction(gameId, ruleId, action, payload = {}) {
       const r = catalogRules(g).find(x => x.id === entry.ruleId);
       if (!r) return true; // rule no longer exists; drop the stale history entry
       const p = ruleProgress(g, r);
+      // Stale entry (rule ended, or its revision/period moved on since this click) is
+      // dropped without touching progress - never guess which older entry to apply
+      // instead (PROJECT_DEVELOPMENT_PLAN.md §7.2). Entries from before this contract
+      // existed have no `revision`/`periodKey` and always fail this check, by design.
+      if (r.format === 'fixed' && p.ended) return true;
+      if (entry.revision !== (r.revision ?? 1) || entry.periodKey !== rulePeriod(g, r)) return true;
       if (entry.kind === 'slot') p.held = Math.max(0, Math.min(r.maxHeld, p.held + entry.delta));
       else p.value = Math.max(r.min, Math.min(r.max, p.value - entry.delta));
       return true;
@@ -176,29 +200,50 @@ function catalogAction(gameId, ruleId, action, payload = {}) {
     if (!r) return false;
     const p = ruleProgress(g, r);
     if (!ruleStarted(r)) return false;
+    const ended = r.format === 'fixed' && p.ended;
     if (action === 'complete') {
-      if (r.kind !== 'slot' || p.held <= 0) return false;
+      if (r.kind !== 'slot' || p.held <= 0 || ended) return false;
       p.held -= 1;
-      pushActionHistory(g, { ruleId, kind: 'slot', delta: 1, at: Date.now() });
+      pushActionHistory(g, {
+        ruleId,
+        revision: r.revision ?? 1,
+        periodKey: rulePeriod(g, r),
+        kind: 'slot',
+        delta: 1,
+        at: Date.now()
+      });
       return true;
     }
     if (action === 'increment') {
-      if (r.kind !== 'gauge' || p.value >= r.max) return false;
+      if (r.kind !== 'gauge' || p.value >= r.max || ended) return false;
       p.value += 1;
       p.achievedMilestones ||= [];
       for (const m of r.milestones || [])
         if (p.value >= m && !p.achievedMilestones.includes(m)) p.achievedMilestones.push(m);
-      pushActionHistory(g, { ruleId, kind: 'gauge', delta: 1, at: Date.now() });
+      pushActionHistory(g, {
+        ruleId,
+        revision: r.revision ?? 1,
+        periodKey: rulePeriod(g, r),
+        kind: 'gauge',
+        delta: 1,
+        at: Date.now()
+      });
       return true;
     }
+    // Manual add/remove don't go through actionHistory themselves (they're a "detail
+    // settings" correction tool, not a click to undo), but they DO invalidate this
+    // rule's prior undo entries - otherwise an old completion's delta could later
+    // reapply on top of a count the user just fixed by hand (§7.2).
     if (action === 'manual-add') {
       if (r.kind !== 'slot' || p.held >= r.maxHeld) return false;
       p.held += 1;
+      g.actionHistory = (g.actionHistory || []).filter(e => e.ruleId !== ruleId);
       return true;
     }
     if (action === 'manual-remove') {
       if (r.kind !== 'slot' || p.held <= 0) return false;
       p.held -= 1;
+      g.actionHistory = (g.actionHistory || []).filter(e => e.ruleId !== ruleId);
       return true;
     }
     if (action === 'set-fold-target') {
@@ -236,4 +281,37 @@ function universalStatus(g) {
     if (r.kind === 'slot' && p.held >= r.maxHeld) urgent = true;
   }
   return { color: urgent ? 'urgent' : count ? 'pending' : 'done', label: count ? '!' : '✓', count };
+}
+
+// Track 2's game-settings screen calls this instead of assigning g.resetSchedule directly,
+// so getting the revision-bump judgment right (PROJECT_DEVELOPMENT_PLAN.md §7.3) is never
+// the UI's job. Only rules that actually inherit the changed half of the default (no
+// resetOverride, not fixed-format) can have their effective schedule change at all.
+function updateResetSchedule(gameId, { dailyTime, weeklyDay }) {
+  const time = t => typeof t === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(t);
+  if (!time(dailyTime) || !Number.isSafeInteger(weeklyDay) || weeklyDay < 0 || weeklyDay > 6)
+    throw Error('리셋 시각과 요일을 확인하세요.');
+  return runCatalogAction(gameId, g => {
+    syncCatalog(g);
+    const next = { dailyTime, weeklyDay };
+    for (const r of catalogRules(g)) {
+      if (r.format === 'fixed' || r.resetOverride) continue;
+      const before = ruleResetSchedule(g, r),
+        after = ruleResetSchedule({ resetSchedule: next }, r);
+      if (JSON.stringify(before) !== JSON.stringify(after)) r.revision = (r.revision ?? 1) + 1;
+    }
+    g.resetSchedule = next;
+    return true;
+  });
+}
+
+// Full-fidelity export: every field of state.games round-trips through this, so a game's
+// rules/progress/schedule/pass/history compare equal after export -> import -> restart
+// (PROJECT_DEVELOPMENT_PLAN.md §3.7's completion criterion). Import UI itself is Stage C.
+function serializeStateForExport(now = new Date()) {
+  return {
+    schemaVersion: state.version,
+    exportedAt: now.toISOString(),
+    games: structuredClone(state.games)
+  };
 }

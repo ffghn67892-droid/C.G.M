@@ -68,7 +68,15 @@ function presetTrackerRules(id) {
     return [
       trackerSlotRule('daily', '일일 퀘스트', 'daily', 1, 3),
       trackerSlotRule('free', '일일 무료 카드', 'daily', 1, 1),
-      trackerSlotRule('chest', '주간 보상 상자', 'weekly', 1, 1)
+      trackerSlotRule('chest', '주간 보상 상자', 'weekly', 1, 1, {
+        // PROJECT_DEVELOPMENT_PLAN.md §3.4/§7.2: RESET_SCHEDULES.kards.weekly is null (KARDS
+        // has no generic weekly reset), so presetTrackerReset() falls back to weekday 0 -
+        // contradicting this project's own worked example (TODO_TRACKER_REDESIGN.md §5.1),
+        // which says Wednesday. Pinned here via override instead of changing
+        // presetTrackerReset()'s fallback, so it affects only this rule, not every future
+        // game whose RESET_SCHEDULES entry happens to lack a weekly slot.
+        resetOverride: { weekday: 3, time: '09:00' }
+      })
     ];
   if (id === 'mtga')
     return [
