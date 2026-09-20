@@ -103,7 +103,7 @@ AI 작업 친화적 구조 개편(Stage H4)에서 위 10개 파일을 실제로 
 
 **남은 "부분/공백" 행은 재현하지 않았다.** 실패한 나머지 64개 선언은 대부분 현재 존재하지 않는 화면·함수를 참조한다 — 2단계 설정 미리보기(`#previewSetup`/`#commitSetup`), 게임별 전용 조작(`.win-add`, `#chestTier`, `#dailyRewardModal`), 그리고 카탈로그 엔진 이전의 `passAwards()` 함수(현재 코드에 없음, `ReferenceError`) 등이다. 이 함수·화면들이 지키던 실질적 요구사항(보상 정확한 금액, 지급 멱등성, 중복 지급 방지)은 이미 현재 엔진 기준의 핵심 스위트(E1~E8, F, 회귀 6개)가 `catalogAction()`/`PASS_DATA` 경로로 별도 검증한다 — 예: E2가 하스스톤 pass free/paid 반복 보상 멱등성을, E5가 Master Duel 월간 상한·전체 패스 보상을 이미 다룬다. 따라서 옛 API를 대상으로 한 나머지 선언을 새 UI에 맞춰 다시 쓰는 대신 폐기했다. 이는 새 커버리지를 추가한 것이 아니라 이미 중복된 검증을 정리한 것이므로, 위 표의 "부분/공백" 표시가 가리키던 좁은 틈(예: 특정 게임의 정확한 반복 지급 문구, 특정 색상 상태 조합)은 여전히 미검증 상태로 남아 있다. 회귀나 기능 변경으로 이 틈이 실제 문제가 될 때 그 시점의 요구사항으로 새 테스트를 추가한다.
 
-## 2026-09-19 재후속: 할 일 추적기 개편(Stage L1)으로 39개 → 34개 정리
+## 2026-09-19 재후속: 할 일 추적기 개편(Stage L1)으로 39개 → 33개 정리
 
 [TODO_TRACKER_REDESIGN.md](TODO_TRACKER_REDESIGN.md)의 "보상 기록기 → 할 일 추적기" 전환으로 quest/claim/goal/resource/pass/counter 6개 규칙 타입과 보상·상자·연동 시스템 자체가 없어졌다. H4 때 이관한 39개 중 `tests/catalog-critical.test.cjs`(핵심 E1~E8 10개, 위 표의 "핵심" 대응 근거였던 파일 전체)와 `tests/catalog-additional.test.cjs`·`tests/catalog-safety.test.cjs`의 일부가 이 타입들을 직접 검증하고 있었다. 새 엔진(`catalog-engine.js`, slot/gauge 2종)으로 교체하면서 아래를 확인 후 정리했다:
 
@@ -112,5 +112,4 @@ AI 작업 친화적 구조 개편(Stage H4)에서 위 10개 파일을 실제로 
 - **`tests/catalog-additional.test.cjs`에서 거짓 양성(false positive) 1개 발견 후 삭제**: "catalog rejects invalid references, schedules and quantities without saving"는 존재하지 않는 `updateKardsCatalog()`를 호출해 매번 `ReferenceError`로 통과하고 있었다 — 실제 검증(유효성 검사 로직)은 전혀 실행되지 않았다. 이 시나리오와 동일한 취지("잘못된 항목은 저장 전에 거부")는 `tests/catalog-engine-v2.test.cjs`의 `validateCatalog` 테스트가 새 스키마로 실제 검증한다.
 - **`tests/catalog-safety.test.cjs`에서 9개 삭제, 2개만 유지**: 나머지는 전부 프리셋(`presetCatalog`/`cloneCatalog`)·`totals()`·`initialReceived`·연동(`links`) 등 보상 시스템을 직접 다뤘다. 남긴 2개("changed reset boundary rebuilds deadline once", "F: due refresh waits for an open editor...")는 규칙 스키마와 무관한 범용 스케줄러 동작이라 그대로 유효하다.
 
-삭제된 39개 조합 중 규칙 스키마와 무관한 범용 요구사항(저장 실패 롤백, KST 경계 계산, 등록/초기화 흐름)은 위 표에서 이미 "부분/공백"으로 남아있던 나머지 64개 옛 선언과 마찬가지로 별도 이관하지 않는다 — 필요해지면 그때 새 스키마 기준으로 추가한다. `npm.cmd test`는 이제 34개(구형 이관 11 + Track 1 8 + Track 2 16 — 위 표의 39개 중 5개 삭제로 11로 감소, 나머지 23은 이번 Stage L1에서 새로 작성)이며 전부 통과한다.
-
+삭제된 39개 조합 중 규칙 스키마와 무관한 범용 요구사항(저장 실패 롤백, KST 경계 계산, 등록/초기화 흐름)은 위 표에서 이미 "부분/공백"으로 남아있던 나머지 64개 옛 선언과 마찬가지로 별도 이관하지 않는다 — 필요해지면 그때 새 스키마 기준으로 추가한다. `npm.cmd test`는 이제 33개(기존 이관 9 + Track 1 8 + Track 2 16)이며 전부 통과한다.
