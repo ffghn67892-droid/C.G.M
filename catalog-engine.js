@@ -1,7 +1,12 @@
 // Track 1 (engine/data). Contract consumed by Track 2's catalog-view.js/catalog-editor.js
 // is locked in TODO_TRACKER_REDESIGN.md §10 — keep this file's public shapes in sync with it.
 const CATALOG_KINDS = { slot: '슬롯형', gauge: '게이지형' };
-const CATALOG_FORMATS = { daily: '일일', weekly: '주간', fixed: '지정 기간' };
+const CATALOG_FORMATS = {
+  daily: '일일',
+  weekly: '주간',
+  fixed: '지정 기간',
+  interval: '시간 간격'
+};
 
 // Every game is a tracker/catalog game now — no more legacy per-game screens to fall
 // back to. Kept as a function (not inlined at call sites) since manager.js/alerts.js/
@@ -36,7 +41,8 @@ function validateCatalog(rules) {
     if (!validId(r.id) || ids.has(r.id)) throw Error('규칙 ID가 중복되거나 올바르지 않습니다.');
     ids.add(r.id);
     if (!r.name?.trim()) throw Error('항목 이름을 입력하세요.');
-    if (!CATALOG_FORMATS[r.format]) throw Error('포맷을 확인하세요(일일/주간/지정 기간).');
+    if (!CATALOG_FORMATS[r.format])
+      throw Error('포맷을 확인하세요(일일/주간/지정 기간/시간 간격).');
     if (!CATALOG_KINDS[r.kind]) throw Error('형태를 확인하세요(슬롯형/게이지형).');
     if (r.resetOverride != null) {
       if (typeof r.resetOverride !== 'object' || !time(r.resetOverride.time))
@@ -52,6 +58,10 @@ function validateCatalog(rules) {
         endMomentMs(r) <= dateOnlyMs(r.startDate)
       )
         throw Error('지정 기간의 시작일·종료일·종료 시각을 확인하세요.');
+    }
+    if (r.format === 'interval') {
+      if (!time(r.anchorTime) || !num(r.intervalHours, 1, 168))
+        throw Error('기준 시각과 갱신 간격(1~168시간)을 확인하세요.');
     }
     if (r.kind === 'slot') {
       if (!num(r.refillCount, 1, 100) || !num(r.maxHeld, 1, 1000) || r.refillCount > r.maxHeld)
@@ -93,11 +103,22 @@ function ruleResetSchedule(g, r) {
     : { time: g.resetSchedule.dailyTime };
 }
 
-// Returns an opaque, monotonically increasing "period index" for daily/weekly rules
-// (KST day-boundary math via periodAt, defined in game-config.js). Fixed-format rules
-// have no recurring period and always return null.
+// r.format:'interval' rules never inherit g.resetSchedule - anchorTime/intervalHours are
+// self-contained on the rule, generalizing periodAt's day-boundary math (game-config.js)
+// to any cadence (e.g. Snap's real 04:00/12:00/20:00 KST reset -> anchorTime:'04:00',
+// intervalHours:8). Divides consecutive boundaries by 1 like daily, so the elapsed-period
+// math in syncUniversalCatalog below needs no changes to support it.
+function intervalPeriodAt(r, now = new Date()) {
+  const [h, m] = r.anchorTime.split(':').map(Number);
+  return Math.floor((now.getTime() + (9 - h) * HOUR_MS - m * 60000) / (r.intervalHours * HOUR_MS));
+}
+
+// Returns an opaque, monotonically increasing "period index" for daily/weekly/interval
+// rules (KST day-boundary math via periodAt, defined in game-config.js). Fixed-format
+// rules have no recurring period and always return null.
 function rulePeriod(g, r, now = new Date()) {
   if (r.format === 'fixed') return null;
+  if (r.format === 'interval') return intervalPeriodAt(r, now);
   const sched = ruleResetSchedule(g, r),
     [h, m] = sched.time.split(':').map(Number),
     day = periodAt(h, m, now);
@@ -106,6 +127,7 @@ function rulePeriod(g, r, now = new Date()) {
 
 function ruleScheduleText(g, r) {
   if (r.format === 'fixed') return `지정 기간 ${r.startDate} ~ ${r.endDate} ${r.endTime} KST`;
+  if (r.format === 'interval') return `${r.anchorTime} 기준 매 ${r.intervalHours}시간마다 KST`;
   const sched = ruleResetSchedule(g, r);
   return r.format === 'daily'
     ? `매일 ${sched.time} KST`
@@ -130,7 +152,9 @@ function ruleRevisionKey(r) {
     r.startDate,
     r.endDate,
     r.endTime,
-    r.resetOverride
+    r.resetOverride,
+    r.anchorTime,
+    r.intervalHours
   ]);
 }
 
@@ -286,7 +310,8 @@ function universalStatus(g) {
 // Track 2's game-settings screen calls this instead of assigning g.resetSchedule directly,
 // so getting the revision-bump judgment right (PROJECT_DEVELOPMENT_PLAN.md §7.3) is never
 // the UI's job. Only rules that actually inherit the changed half of the default (no
-// resetOverride, not fixed-format) can have their effective schedule change at all.
+// resetOverride, not fixed-format, not interval-format - both are self-contained and
+// never read g.resetSchedule) can have their effective schedule change at all.
 function updateResetSchedule(gameId, { dailyTime, weeklyDay }) {
   const time = t => typeof t === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(t);
   if (!time(dailyTime) || !Number.isSafeInteger(weeklyDay) || weeklyDay < 0 || weeklyDay > 6)
@@ -295,7 +320,7 @@ function updateResetSchedule(gameId, { dailyTime, weeklyDay }) {
     syncCatalog(g);
     const next = { dailyTime, weeklyDay };
     for (const r of catalogRules(g)) {
-      if (r.format === 'fixed' || r.resetOverride) continue;
+      if (r.format === 'fixed' || r.format === 'interval' || r.resetOverride) continue;
       const before = ruleResetSchedule(g, r),
         after = ruleResetSchedule({ resetSchedule: next }, r);
       if (JSON.stringify(before) !== JSON.stringify(after)) r.revision = (r.revision ?? 1) + 1;

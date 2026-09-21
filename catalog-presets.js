@@ -9,9 +9,6 @@
 // is mined from what the old fixed tabs actually did (schedules.js's RESET_SCHEDULES, and
 // the pre-cleanup catalog-presets.js recovered from git history at commit f13b02c^). What
 // does NOT appear here is exactly what could not survive the new slot/gauge model:
-// - Duel Links' "일반 듀얼리스트" and Pokemon Pocket's "무료 팩"/"겟 챌린지 포인트" were
-//   `resource` type (continuous timer-based recharge, e.g. +1 every 30 minutes) - the new
-//   engine only refills on a daily/weekly boundary, so there is no equivalent.
 // - Any rule whose count was *derived* from other rules via the retired `links` mechanic
 //   (Duel Links' "모든 주간 미션 완료", Pokemon Pocket's "일일 달성 보상") is dropped -
 //   without auto-linking it would just be a second counter the user has to click by hand.
@@ -21,9 +18,23 @@
 //   add a 지정 기간 rule by hand for a real event with real dates).
 // - Master Duel's monthly login cap (30/month) has no equivalent - there is no monthly
 //   format - so its login item here is a plain daily slot with the cap dropped.
-// - Snap's daily items actually refresh 3x/day (04:00/12:00/20:00, the 'slots' schedule
-//   kind) - the new model only has one daily reset per game, so these are approximated as
-//   a single daily refill sized to match what one full day used to yield.
+// - Duel Links' "일반 듀얼리스트" has no equivalent even with `format:'interval'` below - it
+//   was a *personal rolling timer* (recharges N hours after each use), not a schedule
+//   shared by every player, and interval rules only model the latter (a fixed anchorTime
+//   every player resets from). Still left out entirely.
+//
+// Stage D (2026-09-22): `format:'interval'` (매 N시간마다 갱신, PROJECT_DEVELOPMENT_PLAN.md
+// §5's "하루 여러 번 공급" case, requested directly by the user) lets two more old items
+// come back as an *exact* structural match instead of an approximation:
+// - Snap's daily items actually refresh 3x/day at 04:00/12:00/20:00 KST (the old 'slots'
+//   schedule kind) - previously approximated as one daily refill sized for a full day's
+//   yield; now `interval`+anchorTime:'04:00'+intervalHours:8 reproduces the real cadence.
+// - Pokemon Pocket's "무료 팩"/"챌린지 파워" were `resource` type (a *global* continuous
+//   recharge - +1 every 12 hours up to a cap, same clock for every player, per the old
+//   alerts.js capacities of 2 and 5) - modeled here as a plain slot on a 12-hour interval.
+//   This is an approximation of a countdown as a plain rising count (no exact "time until
+//   full" display - the user only sees how many of the cap they currently have), which is
+//   the explicit tradeoff requested: simpler than a real timer, still answers "is it full".
 const CATALOG_PRESETS = [
   'mtga',
   'hearthstone',
@@ -112,13 +123,27 @@ function presetTrackerRules(id) {
   if (id === 'duel-links') return [trackerSlotRule('weekly', '주간 미션', 'weekly', 6, 6)];
   if (id === 'snap')
     return [
-      trackerSlotRule('missions', '일반 임무', 'daily', 6, 6),
+      trackerSlotRule('missions', '일반 임무', 'interval', 2, 6, {
+        anchorTime: '04:00',
+        intervalHours: 8
+      }),
       trackerGaugeRule('weekly', '주간 도전', 'weekly', 25, [5, 10, 15, 20, 25]),
       trackerSlotRule('free-credit', '무료 크레딧', 'daily', 1, 1),
       trackerSlotRule('free-token', '무료 컬렉터 토큰', 'daily', 1, 1),
       trackerSlotRule('web', '웹 무료 크레딧', 'daily', 1, 1)
     ];
-  if (id === 'pokemon-pocket') return [trackerSlotRule('daily', '일일 미션', 'daily', 7, 7)];
+  if (id === 'pokemon-pocket')
+    return [
+      trackerSlotRule('daily', '일일 미션', 'daily', 7, 7),
+      trackerSlotRule('free-pack', '무료 팩', 'interval', 1, 2, {
+        anchorTime: '00:00',
+        intervalHours: 12
+      }),
+      trackerSlotRule('challenge-power', '챌린지 파워', 'interval', 1, 5, {
+        anchorTime: '00:00',
+        intervalHours: 12
+      })
+    ];
   return [];
 }
 
