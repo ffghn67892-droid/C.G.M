@@ -60,8 +60,8 @@ function validateCatalog(rules) {
         throw Error('지정 기간의 시작일·종료일·종료 시각을 확인하세요.');
     }
     if (r.format === 'interval') {
-      if (!time(r.anchorTime) || !num(r.intervalHours, 1, 168))
-        throw Error('기준 시각과 갱신 간격(1~168시간)을 확인하세요.');
+      if (!time(r.anchorTime) || !num(r.intervalMinutes, 1, 10080))
+        throw Error('기준 시각과 갱신 간격(1분~7일)을 확인하세요.');
     }
     if (r.kind === 'slot') {
       if (!num(r.refillCount, 1, 100) || !num(r.maxHeld, 1, 1000) || r.refillCount > r.maxHeld)
@@ -103,14 +103,16 @@ function ruleResetSchedule(g, r) {
     : { time: g.resetSchedule.dailyTime };
 }
 
-// r.format:'interval' rules never inherit g.resetSchedule - anchorTime/intervalHours are
+// r.format:'interval' rules never inherit g.resetSchedule - anchorTime/intervalMinutes are
 // self-contained on the rule, generalizing periodAt's day-boundary math (game-config.js)
-// to any cadence (e.g. Snap's real 04:00/12:00/20:00 KST reset -> anchorTime:'04:00',
-// intervalHours:8). Divides consecutive boundaries by 1 like daily, so the elapsed-period
-// math in syncUniversalCatalog below needs no changes to support it.
+// to any cadence. Minutes (not hours) so sub-hour recharges - e.g. Duel Links' real 30-
+// minute duelist recovery - are exact integers rather than a fraction of an hour (e.g.
+// Snap's real 04:00/12:00/20:00 KST reset is anchorTime:'04:00', intervalMinutes:480).
+// Divides consecutive boundaries by 1 like daily, so the elapsed-period math in
+// syncUniversalCatalog below needs no changes to support it.
 function intervalPeriodAt(r, now = new Date()) {
   const [h, m] = r.anchorTime.split(':').map(Number);
-  return Math.floor((now.getTime() + (9 - h) * HOUR_MS - m * 60000) / (r.intervalHours * HOUR_MS));
+  return Math.floor((now.getTime() + (9 - h) * HOUR_MS - m * 60000) / (r.intervalMinutes * 60000));
 }
 
 // Returns an opaque, monotonically increasing "period index" for daily/weekly/interval
@@ -125,9 +127,19 @@ function rulePeriod(g, r, now = new Date()) {
   return r.format === 'daily' ? day : day - ((((day + 4 - sched.weekday) % 7) + 7) % 7);
 }
 
+// e.g. 480 -> '8시간', 30 -> '30분', 90 -> '1시간 30분'.
+function intervalLengthText(minutes) {
+  const h = Math.floor(minutes / 60),
+    m = minutes % 60;
+  if (!h) return `${m}분`;
+  if (!m) return `${h}시간`;
+  return `${h}시간 ${m}분`;
+}
+
 function ruleScheduleText(g, r) {
   if (r.format === 'fixed') return `지정 기간 ${r.startDate} ~ ${r.endDate} ${r.endTime} KST`;
-  if (r.format === 'interval') return `${r.anchorTime} 기준 매 ${r.intervalHours}시간마다 KST`;
+  if (r.format === 'interval')
+    return `${r.anchorTime} 기준 매 ${intervalLengthText(r.intervalMinutes)}마다 KST`;
   const sched = ruleResetSchedule(g, r);
   return r.format === 'daily'
     ? `매일 ${sched.time} KST`
@@ -154,7 +166,7 @@ function ruleRevisionKey(r) {
     r.endTime,
     r.resetOverride,
     r.anchorTime,
-    r.intervalHours
+    r.intervalMinutes
   ]);
 }
 

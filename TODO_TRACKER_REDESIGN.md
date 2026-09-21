@@ -174,12 +174,14 @@ Track 1이 새로 구현할 `catalog-engine.js`의 공개 함수/데이터 모�
   endDate, endTime,                // format:'fixed'일 때만 사용. 종료 순간은 절대 자동으로
                                     // 정하지 않는다 — endDate('YYYY-MM-DD')+endTime('HH:MM',
                                     // KST)를 사용자가 직접 입력한 그대로 사용한다(2026-09-20 확정).
-  anchorTime, intervalHours,       // format:'interval'일 때만 사용 (Stage D, 2026-09-22).
-                                    // anchorTime('HH:MM', KST)이 매 intervalHours(1~168)시간마다
-                                    // 반복되는 리셋 경계 중 하나 — 예: anchorTime:'04:00',
-                                    // intervalHours:8 → 04:00/12:00/20:00 KST마다 리셋. 게임
-                                    // 기본 리셋(g.resetSchedule)과 무관한 자체 완결형 일정이라
-                                    // updateResetSchedule()의 영향을 받지 않는다.
+  anchorTime, intervalMinutes,     // format:'interval'일 때만 사용 (Stage D, 2026-09-22).
+                                    // anchorTime('HH:MM', KST)이 매 intervalMinutes(정수
+                                    // 1~10080, 즉 1분~7일)분마다 반복되는 리셋 경계 중 하나 —
+                                    // 예: anchorTime:'04:00', intervalMinutes:480(8시간) →
+                                    // 04:00/12:00/20:00 KST마다 리셋. 시간이 아니라 분 단위인
+                                    // 이유: 30분 같은 시간 미만 주기를 소수 없이 정수로 표현하기
+                                    // 위해서다. 게임 기본 리셋(g.resetSchedule)과 무관한 자체
+                                    // 완결형 일정이라 updateResetSchedule()의 영향을 받지 않는다.
   kind: 'slot' | 'gauge',
   // kind:'slot'
   refillCount, maxHeld,
@@ -187,8 +189,8 @@ Track 1이 새로 구현할 `catalog-engine.js`의 공개 함수/데이터 모�
   min, max, milestones: number[],  // 오름차순 정렬된 마일스톤 값 목록 (구간 보상 지점, 2.3-2)
   revision: number                 // Stage A(2026-09-20): 1부터 시작. format/refillCount/
                                     // maxHeld/min/max/milestones/startDate/endDate/endTime/
-                                    // resetOverride/anchorTime/intervalHours 중 하나라도 바뀌면
-                                    // +1. 이름·순서·kind는 절대 영향 없음(kind는 애초에 변경
+                                    // resetOverride/anchorTime/intervalMinutes 중 하나라도
+                                    // 바뀌면 +1. 이름·순서·kind는 절대 영향 없음(kind는 애초에 변경
                                     // 자체가 거부됨).
                                     // updateCatalog가 편집 시 자동 계산 - Track 2는 절대
                                     // 직접 쓰지 않는다. 없으면(구버전 저장) 1로 간주.
@@ -231,7 +233,7 @@ profile: {
 
 ### 규칙별 리셋 재지정 — `ruleResetSchedule(g, r)` / `rulePeriod(g, r, now)`
 
-`r.resetOverride`가 있으면 그 값(`{time}` 또는 `{weekday,time}`)을 쓰고, 없으면 `g.resetSchedule`을 그대로 쓴다(2.3-3). `format:'fixed'`는 이 함수들의 대상이 아니며 `rulePeriod`는 `null`을 반환한다 — 대신 `r.startDate`/`r.endDate`로 직접 판단한다. `format:'interval'`도 `ruleResetSchedule`을 절대 호출하지 않는다 — `rulePeriod`가 `r.anchorTime`/`r.intervalHours`만으로 직접 계산한다(`intervalPeriodAt`, Stage D). 두 포맷 모두 게임 기본값과 무관하므로 `ruleResetSchedule(g, r)`을 직접 호출하는 새 코드는 먼저 `r.format`이 `'fixed'`/`'interval'`이 아닌지 확인해야 한다.
+`r.resetOverride`가 있으면 그 값(`{time}` 또는 `{weekday,time}`)을 쓰고, 없으면 `g.resetSchedule`을 그대로 쓴다(2.3-3). `format:'fixed'`는 이 함수들의 대상이 아니며 `rulePeriod`는 `null`을 반환한다 — 대신 `r.startDate`/`r.endDate`로 직접 판단한다. `format:'interval'`도 `ruleResetSchedule`을 절대 호출하지 않는다 — `rulePeriod`가 `r.anchorTime`/`r.intervalMinutes`만으로 직접 계산한다(`intervalPeriodAt`, Stage D). 두 포맷 모두 게임 기본값과 무관하므로 `ruleResetSchedule(g, r)`을 직접 호출하는 새 코드는 먼저 `r.format`이 `'fixed'`/`'interval'`이 아닌지 확인해야 한다.
 
 ### 동작 — `catalogAction(gameId, ruleId, action, payload)`
 
@@ -280,18 +282,19 @@ Track 2는 게임 설정 화면에서 `game.resetSchedule = {...}`를 직접 대
 
 **Stage A 통합 확인(2026-09-20)**: 위 갱신 사항(`revision`/`periodKey`/종료 게이팅/`updateResetSchedule`/`serializeStateForExport`/옛 저장 변환)을 Track 1이 구현했고, `tests/catalog-stage-a-v2.test.cjs`(15개, 기존 40개에 추가)로 검증했다 - `npm test` 55/55 통과. KARDS 프리셋의 주간 상자 규칙에 `resetOverride: { weekday: 3, time: '09:00' }`도 함께 반영(PROJECT_DEVELOPMENT_PLAN.md §3.4/§7.2, catalog-presets.js).
 
-### `format:'interval'` — 매 N시간마다 갱신 (Stage D, 2026-09-22)
+### `format:'interval'` — 매 N분/시간마다 갱신 (Stage D, 2026-09-22)
 
-사용자가 직접 요청: "규칙 구성 세부값에서 '갱신 주기' 값 입력할 수 있도록 추가... x시간마다 갱신이라고 하면 앞에 갱신 수만큼 x시간마다 갱신." 규칙 필드는 위 "규칙 정의" 표를 따른다(`anchorTime`, `intervalHours`). 핵심 동작:
+사용자가 직접 요청: "규칙 구성 세부값에서 '갱신 주기' 값 입력할 수 있도록 추가... x시간마다 갱신이라고 하면 앞에 갱신 수만큼 x시간마다 갱신." 규칙 필드는 위 "규칙 정의" 표를 따른다(`anchorTime`, `intervalMinutes`). **처음엔 `intervalHours`(정수 1~168)로 구현했다가, 사용자가 듀얼링크스의 "일반 듀얼리스트"(최대 10, 30분마다 1 회복)를 예로 들며 시간 미만 주기가 실제로 필요하다고 지적해 분 단위(`intervalMinutes`, 정수 1~10080)로 다시 정의했다** — 필드명이 이미 한 번 바뀌었으니 이 문서와 편집기 작업을 시작할 때 `intervalHours`가 아니라 `intervalMinutes`인지 반드시 확인할 것. 핵심 동작:
 
-- `intervalPeriodAt(r, now)`(catalog-engine.js): `periodAt`(game-config.js, `daily` 포맷이 쓰는 KST 자정 기준 날짜 경계 계산)를 24시간 고정에서 `r.intervalHours`시간 임의 간격으로 일반화한 것. 연속된 두 경계 사이의 간격이 항상 1이므로, `syncUniversalCatalog`의 `elapsed` 계산(`period - p.period`, `weekly`만 예외적으로 `/7`)은 **수정 없이 그대로** `interval`에도 맞는다.
+- `intervalPeriodAt(r, now)`(catalog-engine.js): `periodAt`(game-config.js, `daily` 포맷이 쓰는 KST 자정 기준 날짜 경계 계산)를 24시간 고정에서 `r.intervalMinutes`분 임의 간격으로 일반화한 것. 연속된 두 경계 사이의 간격이 항상 1이므로, `syncUniversalCatalog`의 `elapsed` 계산(`period - p.period`, `weekly`만 예외적으로 `/7`)은 **수정 없이 그대로** `interval`에도 맞는다.
 - `kind:'slot'`이면 갱신마다 `refillCount`만큼 채워지고(`daily`/`weekly`와 완전히 같은 clamp/누적 규칙), `kind:'gauge'`면 갱신마다 `min`으로 리셋된다 — 새 규칙이 아니라 `format` 축에 값 하나가 늘어난 것뿐이라 기존 로직을 그대로 재사용한다.
 - `resetOverride`는 `interval`에는 의미가 없다(자체 완결형이므로 게임 기본값을 덮어쓸 대상 자체가 없음) - 편집기는 포맷이 `interval`이면 리셋 재지정 옵션 자체를 감춰야 한다.
 - `updateResetSchedule()`은 `format:'interval'` 규칙을 완전히 건너뛴다(게임 기본 일정과 무관).
-- 검증: `validateCatalog`가 `anchorTime`(HH:MM)과 `intervalHours`(정수 1~168)를 확인한다. 편집기 쪽 `validateTrackerRule`도 동일한 범위로 맞춰야 한다(안 맞으면 3.5와 같은 종류의 편집기/엔진 불일치가 재발한다).
-- 프리셋 반영: 마블 스냅의 "일반 임무"(옛 04:00/12:00/20:00 KST 3회 갱신을 근사 없이 그대로 표현 - `anchorTime:'04:00'`, `intervalHours:8`, `refillCount:2`, `maxHeld:6`)와 포켓몬 포켓의 "무료 팩"(`intervalHours:12`, `maxHeld:2`)/"챌린지 파워"(`intervalHours:12`, `maxHeld:5`) - 둘 다 이전에는 `resource` 타입(글로벌 지속 충전)이라 새 모델에 대응 개념이 없어 제외됐던 항목이다. 자세한 트레이드오프는 catalog-presets.js 헤더 주석 참고.
-- `tests/catalog-interval-v2.test.cjs`(6개)로 검증 - `npm test` 76/76 통과(Stage A까지의 70 + 이번 6).
-- 편집기(Track 2) UI는 아직 이 포맷을 만들 방법이 없다 - 마법사에 "매 N시간마다" 옵션과 기준 시각/간격 입력을 추가해야 사용자가 직접 새 규칙으로 만들 수 있다. 프리셋으로 생성하는 경로(Snap/포켓몬 포켓)는 편집기 변경 없이 이미 완전히 동작한다.
+- 검증: `validateCatalog`가 `anchorTime`(HH:MM)과 `intervalMinutes`(정수 1~10080, 1분~7일)를 확인한다. 편집기 쪽 `validateTrackerRule`도 동일한 범위로 맞춰야 한다(안 맞으면 3.5와 같은 종류의 편집기/엔진 불일치가 재발한다).
+- 화면 표시용 `ruleScheduleText`는 `intervalLengthText()`로 사람이 읽기 쉬운 형태를 만든다 — 30 → "30분", 480 → "8시간", 90 → "1시간 30분".
+- 프리셋 반영: 마블 스냅의 "일반 임무"(옛 04:00/12:00/20:00 KST 3회 갱신을 근사 없이 그대로 표현 - `anchorTime:'04:00'`, `intervalMinutes:480`, `refillCount:2`, `maxHeld:6`), 포켓몬 포켓의 "무료 팩"/"챌린지 파워"(`intervalMinutes:720`, `maxHeld` 2/5), 듀얼링크스의 "일반 듀얼리스트"(`intervalMinutes:30`, `maxHeld:10`) - 셋 다 이전에는 `resource` 타입(지속 충전)이라 새 모델에 대응 개념이 없어 제외됐던 항목이다. 자세한 트레이드오프는 catalog-presets.js 헤더 주석 참고.
+- `tests/catalog-interval-v2.test.cjs`(7개)로 검증 - `npm test` 77/77 통과(Stage A까지의 70 + 이번 7).
+- 편집기(Track 2) UI는 아직 이 포맷을 만들 방법이 없다 - 마법사에 "시간 간격" 옵션과 기준 시각/간격(분) 입력을 추가해야 사용자가 직접 새 규칙으로 만들 수 있다. 프리셋으로 생성하는 경로(Snap/포켓몬 포켓/듀얼링크스)는 편집기 변경 없이 이미 완전히 동작한다.
 
 ---
 
