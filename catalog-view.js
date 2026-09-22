@@ -121,8 +121,9 @@ function renderUniversalGame(id) {
         renderAll();
         const updated = [...$('#questList').querySelectorAll('[data-catalog-action]')];
         const focus =
-          updated.find(b => b.dataset.ruleId === ruleId && b.dataset.catalogAction === action) ||
-          updated.find(b => b.dataset.catalogAction === 'undo');
+          updated.find(
+            b => b.dataset.ruleId === ruleId && b.dataset.catalogAction === action && !b.disabled
+          ) || updated.find(b => b.dataset.catalogAction === 'undo');
         focus?.focus();
       } catch (error) {
         renderUniversalGame(id);

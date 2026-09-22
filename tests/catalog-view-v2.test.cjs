@@ -27,8 +27,11 @@ function start(rules, progress, pass = { active: false }) {
         addEventListener(type, callback) {
           this[type] = callback;
         },
+        get disabled() {
+          return node.hasAttribute('disabled');
+        },
         focus() {
-          focused = this;
+          if (!this.disabled) focused = this;
         }
       }));
     },
@@ -128,11 +131,13 @@ test('view contract: completed cards remain checked and disabled with their fina
   assert.match(a.card('slot').textContent, /남은 수0/);
   assert.match(a.card('slot').textContent, /✓/);
   assert.equal(a.card('slot').hasAttribute('disabled'), true);
+  assert.equal(a.focused.dataset.catalogAction, 'undo');
   a.click('increment', 'gauge');
   assert.equal(a.game.ruleProgress.gauge.value, 3);
   assert.ok(a.card('gauge'));
   assert.match(a.card('gauge').textContent, /✓/);
   assert.equal(a.card('gauge').hasAttribute('disabled'), true);
+  assert.equal(a.focused.dataset.catalogAction, 'undo');
   assert.match(a.card('gauge').getAttribute('aria-label'), /완료됨/);
   assert.doesNotMatch(a.text(), /남은 할 일이 없습니다/);
   assert.deepEqual(
