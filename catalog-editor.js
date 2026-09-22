@@ -26,9 +26,19 @@ function trackerDateValid(date) {
 function trackerTimeValid(time) {
   return /^([01]\d|2[0-3]):[0-5]\d$/.test(time || '');
 }
+function validateTrackerInterval(rule) {
+  if (
+    !trackerTimeValid(rule.anchorTime) ||
+    !Number.isSafeInteger(rule.intervalMinutes) ||
+    rule.intervalMinutes < 1 ||
+    rule.intervalMinutes > 10080
+  )
+    throw Error('기준 시각과 갱신 간격을 확인하세요. 간격은 1~10080분의 정수로 입력하세요.');
+}
 function validateTrackerRule(rule) {
   if (!rule.name.trim() || rule.name.length > 60) throw Error('이름은 1~60자로 입력하세요.');
-  if (!['daily', 'weekly', 'fixed'].includes(rule.format)) throw Error('포맷을 선택하세요.');
+  if (!['daily', 'weekly', 'fixed', 'interval'].includes(rule.format))
+    throw Error('포맷을 선택하세요.');
   if (
     rule.format === 'fixed' &&
     (!trackerDateValid(rule.startDate) ||
@@ -39,6 +49,7 @@ function validateTrackerRule(rule) {
   )
     throw Error('시작일과 종료일·종료 시각을 확인하세요.');
   if (
+    rule.format !== 'interval' &&
     rule.resetOverride &&
     (!/^([01]\d|2[0-3]):[0-5]\d$/.test(rule.resetOverride.time) ||
       (rule.format === 'weekly' &&
@@ -47,6 +58,7 @@ function validateTrackerRule(rule) {
           rule.resetOverride.weekday > 6)))
   )
     throw Error('리셋 시각과 요일을 확인하세요.');
+  if (rule.format === 'interval') validateTrackerInterval(rule);
   if (rule.kind === 'slot') {
     if (![rule.refillCount, rule.maxHeld].every(n => Number.isSafeInteger(n) && n > 0))
       throw Error('갱신 수와 최대 보유 수는 1 이상의 정수로 입력하세요.');
@@ -269,7 +281,7 @@ function mountUniversalEditor(initial, parent, initialSetup = false) {
         r.milestones = [];
       }
     }
-    for (const key of ['refillCount', 'maxHeld', 'min', 'max'])
+    for (const key of ['refillCount', 'maxHeld', 'min', 'max', 'intervalMinutes'])
       if (el(key)) r[key] = el(key).value.trim() ? Number(el(key).value) : NaN;
     if (el('milestones'))
       r.milestones = [
@@ -290,7 +302,12 @@ function mountUniversalEditor(initial, parent, initialSetup = false) {
               : {})
           }
         : null;
-    if (r.format === 'fixed') r.resetOverride = null;
+    if (el('anchorTime')) r.anchorTime = el('anchorTime').value;
+    if (r.format !== 'interval') {
+      delete r.anchorTime;
+      delete r.intervalMinutes;
+    }
+    if (r.format === 'fixed' || r.format === 'interval') r.resetOverride = null;
   }
   function edit(fn) {
     try {
@@ -322,14 +339,19 @@ function mountUniversalEditor(initial, parent, initialSetup = false) {
         select('format', '포맷', r.format, [
           ['daily', '일일'],
           ['weekly', '주간'],
-          ['fixed', '지정 기간']
+          ['fixed', '지정 기간'],
+          ['interval', '시간 간격']
         ]) +
         (r.format === 'fixed'
           ? input('startDate', '시작일 (KST)', r.startDate, 'date') +
             input('endDate', '종료일 (KST)', r.endDate, 'date') +
             input('endTime', '종료 시각 (KST)', r.endTime || '00:00', 'time') +
             '<p class="wizard-help">이 시각이 지나면 규칙이 종료됩니다. 자동으로 정해지지 않으니 직접 입력하세요.</p>'
-          : '<p class="wizard-help">게임의 기본 리셋 시각을 따릅니다.</p>');
+          : r.format === 'interval'
+            ? input('anchorTime', '기준 시각 (KST)', r.anchorTime ?? '00:00', 'time') +
+              input('intervalMinutes', '갱신 간격 (분)', r.intervalMinutes ?? 480, 'number') +
+              '<p class="wizard-help">기준 시각부터 이 간격마다 반복됩니다. 1~10080분 · 30분은 30, 8시간은 480을 입력하세요.</p>'
+            : '<p class="wizard-help">게임의 기본 리셋 시각을 따릅니다.</p>');
     if (step === 2)
       body =
         select('kind', '형태', r.kind, [
@@ -346,7 +368,7 @@ function mountUniversalEditor(initial, parent, initialSetup = false) {
           : input('min', '최소값', r.min, 'number') +
             input('max', '목표값', r.max, 'number') +
             input('milestones', '마일스톤 (선택 · 쉼표로 구분)', (r.milestones || []).join(', '));
-      if (r.format !== 'fixed')
+      if (r.format !== 'fixed' && r.format !== 'interval')
         body += `<label class="check-field"><input data-rule-field="override" type="checkbox" ${r.resetOverride ? 'checked' : ''} />이 항목만 리셋 시각을 게임 기본값과 다르게</label>${
           r.resetOverride
             ? input('resetTime', '리셋 시각 (KST)', r.resetOverride.time, 'time') +
@@ -362,7 +384,7 @@ function mountUniversalEditor(initial, parent, initialSetup = false) {
         }`;
     }
     if (step === 4)
-      body = `<p>${escapeHtml(r.name)} · ${{ daily: '일일', weekly: '주간', fixed: '지정 기간' }[r.format]} · ${r.kind === 'slot' ? '슬롯형' : '게이지형'}</p><p>${r.kind === 'slot' ? `갱신 ${r.refillCount}개 · 최대 ${r.maxHeld}개` : `${r.min} → ${r.max} · 마일스톤 ${(r.milestones || []).join(', ') || '없음'}`}</p>${r.format === 'fixed' ? `<p>${escapeHtml(r.startDate || '')} ~ ${escapeHtml(r.endDate || '')} ${escapeHtml(r.endTime || '')} KST</p>` : `<p>리셋: ${r.resetOverride ? escapeHtml(r.resetOverride.time) : '게임 기본값'}</p>`}<p class="wizard-help">규칙 저장 버튼을 누르면 적용됩니다.</p>`;
+      body = `<p>${escapeHtml(r.name)} · ${{ daily: '일일', weekly: '주간', fixed: '지정 기간', interval: '시간 간격' }[r.format]} · ${r.kind === 'slot' ? '슬롯형' : '게이지형'}</p><p>${r.kind === 'slot' ? `갱신 ${r.refillCount}개 · 최대 ${r.maxHeld}개` : `${r.min} → ${r.max} · 마일스톤 ${(r.milestones || []).join(', ') || '없음'}`}</p>${r.format === 'fixed' ? `<p>${escapeHtml(r.startDate || '')} ~ ${escapeHtml(r.endDate || '')} ${escapeHtml(r.endTime || '')} KST</p>` : r.format === 'interval' ? `<p>${escapeHtml(r.anchorTime || '')} 기준 매 ${escapeHtml(intervalLengthText(r.intervalMinutes))}마다 KST</p>` : `<p>리셋: ${r.resetOverride ? escapeHtml(r.resetOverride.time) : '게임 기본값'}</p>`}<p class="wizard-help">규칙 저장 버튼을 누르면 적용됩니다.</p>`;
     host.innerHTML = `<div class="settings-section-head"><span class="game-tab-mark violet">▦</span><h3>규칙 구성</h3></div><p class="wizard-help">항목 이름 → 포맷 → 형태 → 세부값 → 확인 순서로 입력합니다.</p><div class="rule-order-list" role="list" aria-label="항목 순서">${draft.map((x, i) => `<div class="rule-order-row" role="listitem"><button class="rule-order-name" data-edit-rule="${i}" aria-pressed="${selected === i}">${escapeHtml(x.name)}</button><span class="rule-order-move"><button data-move-rule="${i}" data-move-dir="up" aria-label="${escapeHtml(x.name)} 위로 이동" ${i === 0 ? 'disabled' : ''}>▲</button><button data-move-rule="${i}" data-move-dir="down" aria-label="${escapeHtml(x.name)} 아래로 이동" ${i === draft.length - 1 ? 'disabled' : ''}>▼</button></span></div>`).join('')}</div><button id="addTrackerRule">항목 추가</button><div class="wizard-steps" role="list" aria-label="5단계 중 ${step + 1}단계">${names.map((n, i) => `<span class="wizard-step ${i === step ? 'current' : i < step ? 'done' : ''}" role="listitem"><b>${i + 1}</b></span>`).join('')}</div><p class="wizard-progress">${step + 1} / 5 · ${names[step]}</p><div class="form-grid">${body}</div><div class="wizard-nav"><div class="wizard-nav-primary">${step > 0 ? '<button id="wizardPrev">이전</button>' : ''}${step < 4 ? '<button id="wizardNext">다음</button>' : '<button id="editRuleStart">항목 수정</button>'}</div><div class="wizard-nav-danger"><button id="removeRule" class="danger">항목 삭제</button></div></div><p data-rule-error role="status"></p>`;
     const bind = (selector, fn) =>
       host
@@ -404,6 +426,7 @@ function mountUniversalEditor(initial, parent, initialSetup = false) {
             Date.parse(`${r.startDate}T00:00:00+09:00`))
       )
         throw Error('시작일과 종료일·종료 시각을 확인하세요.');
+      if (step === 1 && r.format === 'interval') validateTrackerInterval(r);
       if (step === 3) validateTrackerRule(r);
       step++;
     });
