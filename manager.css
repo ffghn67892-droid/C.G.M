@@ -20,7 +20,7 @@
 .game-tab { gap: 10px !important; }
 .game-tab > span:nth-child(2) { flex: 1 1 0%; }
 .manager-dialog { width: min(850px, 90vw); max-height: 88vh; overflow: auto; background: rgb(35, 40, 36); border: 1px solid rgb(101, 119, 91); padding: 26px; border-radius: 18px; box-shadow: rgba(0, 0, 0, 0.6) 0px 20px 80px; }
-.manager-dialog h2 { margin-top: 0px; }
+.manager-dialog h2 { margin: 0 0 4px; font-size: 22px; font-weight: 600; letter-spacing: -0.01em; }
 .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0px, 1fr)); gap: 14px; margin: 16px 0px; }
 .form-grid label { display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
 .form-grid label.check-field,  .check-field { display: flex; flex-direction: row; gap: 8px; align-items: center; }
@@ -88,7 +88,7 @@ button:disabled { opacity: 0.45; cursor: default !important; }
 .game-tab-mark { flex-shrink: 0; }
 .game-tab > span:nth-child(2) { white-space: nowrap; overflow-wrap: normal; font-size: 11.5px; }
 .overview-card h3 { white-space: nowrap; overflow-wrap: normal; }
-.rule-editor { margin: 18px 0px; padding: 14px; border: 1px solid rgb(70, 80, 93); border-radius: 12px; }
+.rule-editor { margin: 18px 0px; padding: 14px; border: 1px solid var(--line); border-radius: 12px; }
 .rule-nav { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0px; }
 .rule-nav [aria-pressed="true"] { border-color: var(--lime); }
 .rule-editor fieldset { min-width: 0px; margin: 12px 0px; }
@@ -163,3 +163,37 @@ button.tracker-card:hover { border-color: var(--lime); background: rgb(43, 55, 3
 .tracker-empty { color: var(--muted); padding: 24px 0; line-height: 1.7; }
 .tracker-pass { display: flex; align-items: center; flex-wrap: wrap; gap: 14px; margin-top: 18px; padding: 12px 18px; }
 .tracker-pass strong { font-size: 22px; color: var(--lime); }
+
+/* Settings dialogs: section hierarchy, action roles and wizard progress. */
+.settings-section { padding: 18px 20px; margin: 16px 0; border: 1px solid rgb(70, 83, 68); border-radius: 10px; background: rgb(29, 34, 29); }
+.settings-section:first-child { margin-top: 4px; }
+.settings-section .section-kicker { display: block; margin-bottom: 6px; }
+.settings-section-head { display: flex; align-items: center; gap: 10px; }
+.settings-section-head h3 { margin: 0; font-size: 16px; font-weight: 600; letter-spacing: -0.01em; }
+.settings-section .wizard-help { margin-top: 8px; }
+.settings-section .form-grid { margin: 14px 0 4px; }
+.settings-section .rule-nav { margin-top: 12px; }
+.settings-subsection { margin-top: 12px; padding: 12px 14px; border: 1px dashed rgb(70, 83, 68); border-radius: 8px; background: rgba(0, 0, 0, 0.15); }
+.settings-section.danger-zone { border-color: var(--danger-border); background: rgba(93, 42, 42, 0.16); margin-top: 26px; }
+.game-tab-mark.settings-icon-danger { background: var(--danger-bg); color: var(--danger-text); border: 1px solid var(--danger-border); }
+.manager-dialog button.primary { background: var(--lime); border-color: var(--lime); color: var(--ink); font-weight: 600; }
+.manager-dialog button.primary:hover:not(:disabled) { background: rgb(179, 230, 100); border-color: rgb(179, 230, 100); }
+.manager-dialog button:hover:not(:disabled) { border-color: var(--lime); background: rgb(61, 77, 54); }
+.manager-dialog button.danger:hover:not(:disabled) { background: rgb(107, 51, 51); border-color: rgb(196, 108, 108); }
+#addTrackerRule { border-style: dashed; border-color: var(--lime); color: var(--lime); background: transparent; }
+#addTrackerRule:hover:not(:disabled) { background: rgb(43, 55, 34); }
+.manager-dialog input:hover, .manager-dialog select:hover { border-color: rgb(140, 158, 128); }
+.manager-dialog input:focus-visible, .manager-dialog select:focus-visible { border-color: var(--lime); }
+.wizard-nav { display: flex; flex-direction: column; gap: 14px; margin-top: 18px; }
+.wizard-nav-primary { display: flex; gap: 8px; flex-wrap: wrap; }
+.wizard-nav-danger { display: flex; justify-content: flex-end; padding-top: 12px; border-top: 1px dashed rgb(70, 83, 68); }
+.wizard-steps { display: flex; align-items: center; gap: 6px; margin: 14px 0 2px; }
+.wizard-step { display: flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; border: 1px solid rgb(70, 83, 68); color: var(--muted); font: 600 10px "DM Mono", monospace; background: rgb(29, 34, 29); }
+.wizard-step.done { border-color: var(--lime); color: var(--lime); background: rgb(43, 55, 34); }
+.wizard-step.current { border-color: var(--lime); background: var(--lime); color: var(--ink); }
+.wizard-commit { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 18px; padding-top: 16px; border-top: 1px solid rgb(70, 83, 68); flex-wrap: wrap; }
+.dialog-back-row { margin-top: 16px; }
+.manager-dialog #detailFoldTarget { display: block; width: min(100%, 280px); box-sizing: border-box; margin-top: 8px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 7px; background: var(--ink); color: var(--cream); font: inherit; }
+.manager-dialog #detailFoldTarget:hover { border-color: var(--muted); }
+.manager-dialog #detailFoldTarget:focus-visible { border-color: var(--lime); }
+.manager-dialog button:focus-visible, .manager-dialog input:focus-visible, .manager-dialog select:focus-visible { outline: 2px solid var(--lime); outline-offset: 3px; }

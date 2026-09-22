@@ -47,7 +47,7 @@ function openCatalogEditor(gameId) {
   const g = state.games[gameId];
   openDialog(
     '규칙 구성',
-    `<div id="catalogMount"></div><button id="saveRuleCatalog">규칙 저장</button><p id="ruleSaveResult" role="status"></p>${isCustomGame(gameId) ? '<button id="resetCustomGame">이 게임 초기화</button>' : ''}`
+    `<div id="catalogMount"></div><div class="wizard-commit"><button id="saveRuleCatalog" class="primary">규칙 저장</button>${isCustomGame(gameId) ? '<button id="resetCustomGame" class="danger">이 게임 초기화</button>' : ''}</div><p id="ruleSaveResult" role="status"></p>`
   );
   const read = mountRuleEditor(catalogRules(g), $('#catalogMount'));
   $('#saveRuleCatalog').addEventListener('click', () => {
