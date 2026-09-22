@@ -228,7 +228,8 @@ function openUniversalSettings(id) {
 function mountUniversalEditor(initial, parent, initialSetup = false) {
   const draft = structuredClone(initial);
   let selected = 0,
-    step = initial.length ? 4 : 0;
+    step = initial.length ? 4 : 0,
+    pendingFocus = null;
   const host = document.createElement('section');
   host.className = 'rule-editor';
   parent.appendChild(host);
@@ -362,7 +363,7 @@ function mountUniversalEditor(initial, parent, initialSetup = false) {
     }
     if (step === 4)
       body = `<p>${escapeHtml(r.name)} · ${{ daily: '일일', weekly: '주간', fixed: '지정 기간' }[r.format]} · ${r.kind === 'slot' ? '슬롯형' : '게이지형'}</p><p>${r.kind === 'slot' ? `갱신 ${r.refillCount}개 · 최대 ${r.maxHeld}개` : `${r.min} → ${r.max} · 마일스톤 ${(r.milestones || []).join(', ') || '없음'}`}</p>${r.format === 'fixed' ? `<p>${escapeHtml(r.startDate || '')} ~ ${escapeHtml(r.endDate || '')} ${escapeHtml(r.endTime || '')} KST</p>` : `<p>리셋: ${r.resetOverride ? escapeHtml(r.resetOverride.time) : '게임 기본값'}</p>`}<p class="wizard-help">규칙 저장 버튼을 누르면 적용됩니다.</p>`;
-    host.innerHTML = `<div class="settings-section-head"><span class="game-tab-mark violet">▦</span><h3>규칙 구성</h3></div><p class="wizard-help">항목 이름 → 포맷 → 형태 → 세부값 → 확인 순서로 입력합니다.</p><div class="rule-nav">${draft.map((x, i) => `<button data-edit-rule="${i}" aria-pressed="${selected === i}">${escapeHtml(x.name)}</button>`).join('')}<button id="addTrackerRule">항목 추가</button></div><div class="wizard-steps" role="list" aria-label="5단계 중 ${step + 1}단계">${names.map((n, i) => `<span class="wizard-step ${i === step ? 'current' : i < step ? 'done' : ''}" role="listitem"><b>${i + 1}</b></span>`).join('')}</div><p class="wizard-progress">${step + 1} / 5 · ${names[step]}</p><div class="form-grid">${body}</div><div class="wizard-nav"><div class="wizard-nav-primary">${step > 0 ? '<button id="wizardPrev">이전</button>' : ''}${step < 4 ? '<button id="wizardNext">다음</button>' : '<button id="editRuleStart">항목 수정</button>'}</div><div class="wizard-nav-danger"><button id="removeRule" class="danger">항목 삭제</button></div></div><p data-rule-error role="status"></p>`;
+    host.innerHTML = `<div class="settings-section-head"><span class="game-tab-mark violet">▦</span><h3>규칙 구성</h3></div><p class="wizard-help">항목 이름 → 포맷 → 형태 → 세부값 → 확인 순서로 입력합니다.</p><div class="rule-order-list" role="list" aria-label="항목 순서">${draft.map((x, i) => `<div class="rule-order-row" role="listitem"><button class="rule-order-name" data-edit-rule="${i}" aria-pressed="${selected === i}">${escapeHtml(x.name)}</button><span class="rule-order-move"><button data-move-rule="${i}" data-move-dir="up" aria-label="${escapeHtml(x.name)} 위로 이동" ${i === 0 ? 'disabled' : ''}>▲</button><button data-move-rule="${i}" data-move-dir="down" aria-label="${escapeHtml(x.name)} 아래로 이동" ${i === draft.length - 1 ? 'disabled' : ''}>▼</button></span></div>`).join('')}</div><button id="addTrackerRule">항목 추가</button><div class="wizard-steps" role="list" aria-label="5단계 중 ${step + 1}단계">${names.map((n, i) => `<span class="wizard-step ${i === step ? 'current' : i < step ? 'done' : ''}" role="listitem"><b>${i + 1}</b></span>`).join('')}</div><p class="wizard-progress">${step + 1} / 5 · ${names[step]}</p><div class="form-grid">${body}</div><div class="wizard-nav"><div class="wizard-nav-primary">${step > 0 ? '<button id="wizardPrev">이전</button>' : ''}${step < 4 ? '<button id="wizardNext">다음</button>' : '<button id="editRuleStart">항목 수정</button>'}</div><div class="wizard-nav-danger"><button id="removeRule" class="danger">항목 삭제</button></div></div><p data-rule-error role="status"></p>`;
     const bind = (selector, fn) =>
       host
         .querySelectorAll(selector)
@@ -375,6 +376,20 @@ function mountUniversalEditor(initial, parent, initialSetup = false) {
     bind('[data-edit-rule]', button => {
       selected = Number(button.dataset.editRule);
       step = 4;
+    });
+    bind('[data-move-rule]', button => {
+      const i = Number(button.dataset.moveRule);
+      const dir = button.dataset.moveDir;
+      const j = dir === 'up' ? i - 1 : i + 1;
+      if (j < 0 || j >= draft.length) return;
+      const selectedId = draft[selected]?.id;
+      [draft[i], draft[j]] = [draft[j], draft[i]];
+      selected = draft.findIndex(rule => rule.id === selectedId);
+      pendingFocus = [
+        `[data-move-rule="${j}"][data-move-dir="${dir}"]`,
+        `[data-move-rule="${j}"][data-move-dir="${dir === 'up' ? 'down' : 'up'}"]`,
+        `[data-edit-rule="${j}"]`
+      ];
     });
     bind('#wizardPrev', () => step--);
     bind('#wizardNext', () => {
@@ -402,6 +417,13 @@ function mountUniversalEditor(initial, parent, initialSetup = false) {
       host
         .querySelector(`[data-rule-field="${key}"]`)
         ?.addEventListener('change', () => edit(() => {}));
+    if (pendingFocus) {
+      const target = pendingFocus
+        .map(selector => host.querySelector(selector))
+        .find(element => element && !element.disabled);
+      target?.focus();
+      pendingFocus = null;
+    }
   }
   render();
   return () => {

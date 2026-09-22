@@ -180,11 +180,11 @@ function openCustomSetup(existingId, draft = {}) {
         .join('');
   openDialog(
     '새 게임 만들기 — 이름',
-    `<p class="wizard-help">1 / 3 · 게임 이름을 입력하세요.</p><label>게임 이름<input id="customGameName" maxlength="60" value="${escapeHtml(draft.name ?? GAMES.find(x => x[0] === existingId)?.[1] ?? '')}" /></label>${
+    `<section class="settings-section"><span class="section-kicker">이름</span><div class="settings-section-head"><span class="game-tab-mark lime">+</span><h3>게임 이름</h3></div><div class="wizard-steps" role="list" aria-label="3단계 중 1단계"><span class="wizard-step current" role="listitem"><b>1</b></span><span class="wizard-step" role="listitem"><b>2</b></span><span class="wizard-step" role="listitem"><b>3</b></span></div><p class="wizard-progress">1 / 3 · 이름</p><div class="form-grid"><label>게임 이름<input id="customGameName" maxlength="60" value="${escapeHtml(draft.name ?? GAMES.find(x => x[0] === existingId)?.[1] ?? '')}" /></label></div>${
       presetOptions
-        ? `<label>시작 구성<select id="customGamePreset"><option value="">빈 구성 — 요소를 하나씩 직접 추가합니다</option>${presetOptions}</select></label><p class="wizard-help">이전 고정 탭에 있던 게임을 고르면 그 게임의 일정·항목 구성(리셋 시각, 항목 이름·개수)을 그대로 채워줍니다. 보상 내용은 없습니다 — 저장 후에도 자유롭게 추가·수정할 수 있습니다.</p>`
+        ? `<div class="settings-subsection"><div class="form-grid"><label>시작 구성<select id="customGamePreset"><option value="">빈 구성 — 요소를 하나씩 직접 추가합니다</option>${presetOptions}</select></label></div><p class="wizard-help">이전 고정 탭에 있던 게임을 고르면 그 게임의 일정·항목 구성(리셋 시각, 항목 이름·개수)을 그대로 채워줍니다. 보상 내용은 없습니다 — 저장 후에도 자유롭게 추가·수정할 수 있습니다.</p></div>`
         : ''
-    }<p id="customGameError" role="status"></p><button id="customSetupNext">다음</button>`
+    }<p id="customGameError" role="status"></p><div class="wizard-nav"><div class="wizard-nav-primary"><button id="customSetupNext">다음</button></div></div></section>`
   );
   $('#customGamePreset')?.addEventListener('change', () => {
     if (!$('#customGameName').value.trim()) {
@@ -208,7 +208,7 @@ function openGameResetStep(existingId, draft) {
     (draft.presetId ? presetTrackerReset(draft.presetId) : { time: '09:00', weekday: 3 });
   openDialog(
     '새 게임 만들기 — 리셋 일정',
-    `<p class="wizard-help">2 / 3 · 일일·주간 항목에 적용할 기본 일정을 정하세요. 시각은 한국 표준시(KST) 기준입니다.</p><div class="form-grid"><label>일일 리셋 시각<input type="time" id="gameResetTime" value="${escapeHtml(reset.time)}" /></label><label>주간 리셋 요일<select id="gameResetWeekday">${['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'].map((day, i) => `<option value="${i}" ${i === reset.weekday ? 'selected' : ''}>${day}</option>`).join('')}</select></label></div><p class="wizard-help">주간 리셋도 위 시각을 사용합니다. 항목별로 다른 일정을 지정할 수 있습니다.</p><p id="customGameError" role="status"></p><button id="customSetupBack">이전</button><button id="customSetupNext">다음</button>`
+    `<section class="settings-section"><span class="section-kicker">일정</span><div class="settings-section-head"><span class="game-tab-mark lime">⟳</span><h3>리셋 일정</h3></div><div class="wizard-steps" role="list" aria-label="3단계 중 2단계"><span class="wizard-step done" role="listitem"><b>1</b></span><span class="wizard-step current" role="listitem"><b>2</b></span><span class="wizard-step" role="listitem"><b>3</b></span></div><p class="wizard-progress">2 / 3 · 일정</p><p class="wizard-help">일일·주간 항목에 적용할 기본 일정을 정하세요. 시각은 한국 표준시(KST) 기준입니다.</p><div class="form-grid"><label>일일 리셋 시각<input type="time" id="gameResetTime" value="${escapeHtml(reset.time)}" /></label><label>주간 리셋 요일<select id="gameResetWeekday">${['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'].map((day, i) => `<option value="${i}" ${i === reset.weekday ? 'selected' : ''}>${day}</option>`).join('')}</select></label></div><p class="wizard-help">주간 리셋도 위 시각을 사용합니다. 항목별로 다른 일정을 지정할 수 있습니다.</p><p id="customGameError" role="status"></p><div class="wizard-nav"><div class="wizard-nav-primary"><button id="customSetupNext">다음</button></div></div><div class="dialog-back-row"><button id="customSetupBack">이전</button></div></section>`
   );
   const readReset = () => ({
     time: $('#gameResetTime').value,
@@ -230,7 +230,7 @@ function openGamePassStep(existingId, draft) {
   const pass = draft.pass || { active: false, purchaseDate: '', endDate: '' };
   openDialog(
     '새 게임 만들기 — 패스',
-    `<p class="wizard-help">3 / 3 · 패스 아이템을 구매했나요?</p><label>패스 구매 여부<select id="gamePassActive"><option value="no" ${!pass.active ? 'selected' : ''}>아니오</option><option value="yes" ${pass.active ? 'selected' : ''}>예</option></select></label><div id="gamePassDates" ${pass.active ? '' : 'hidden'}><p class="wizard-help">날짜는 비워 두고 시작할 수 있습니다. 레벨은 게임 화면에서 직접 올립니다.</p><div class="form-grid"><label>구매일 (선택)<input type="date" id="gamePassPurchaseDate" value="${escapeHtml(pass.purchaseDate)}" /></label><label>종료일 (선택)<input type="date" id="gamePassEndDate" value="${escapeHtml(pass.endDate)}" /></label></div></div><p id="customGameError" role="status"></p><button id="customSetupBack">이전</button><button id="skipGamePass">패스 건너뛰기</button><button id="createCustomGame">완료</button>`
+    `<section class="settings-section"><span class="section-kicker">패스</span><div class="settings-section-head"><span class="game-tab-mark violet">◈</span><h3>패스 정보</h3></div><div class="wizard-steps" role="list" aria-label="3단계 중 3단계"><span class="wizard-step done" role="listitem"><b>1</b></span><span class="wizard-step done" role="listitem"><b>2</b></span><span class="wizard-step current" role="listitem"><b>3</b></span></div><p class="wizard-progress">3 / 3 · 패스</p><p class="wizard-help">패스 아이템을 구매했나요?</p><div class="form-grid"><label>패스 구매 여부<select id="gamePassActive"><option value="no" ${!pass.active ? 'selected' : ''}>아니오</option><option value="yes" ${pass.active ? 'selected' : ''}>예</option></select></label></div><div id="gamePassDates" ${pass.active ? '' : 'hidden'}><p class="wizard-help">날짜는 비워 두고 시작할 수 있습니다. 레벨은 게임 화면에서 직접 올립니다.</p><div class="form-grid"><label>구매일 (선택)<input type="date" id="gamePassPurchaseDate" value="${escapeHtml(pass.purchaseDate)}" /></label><label>종료일 (선택)<input type="date" id="gamePassEndDate" value="${escapeHtml(pass.endDate)}" /></label></div></div><p id="customGameError" role="status"></p><div class="wizard-nav"><div class="wizard-nav-primary"><button id="skipGamePass">패스 없이 만들기</button><button id="createCustomGame" class="primary">완료</button></div></div><div class="dialog-back-row"><button id="customSetupBack">이전</button></div></section>`
   );
   const readPass = () => ({
     active: $('#gamePassActive').value === 'yes',

@@ -1,3 +1,5 @@
+> 2026-09-22 항목 순서 변경·새 게임 마법사 재설계 완료: ▲▼ 이동, 편집 초안 유지 및 렌더링 후 포커스 복원, 생성 3단계 스타일 통일. 기본 검사 79/79와 격리 Chromium의 저장·취소·실행취소·키보드·생성 흐름 검증 통과. 범위와 한계는 [GPT_ITEM_ORDER_AND_NEW_GAME_REPORT.md](GPT_ITEM_ORDER_AND_NEW_GAME_REPORT.md)를 따른다.
+
 > 2026-09-20 할 일 추적기 개편(Stage L1) 완료: Track 1 엔진/데이터와 Track 2 화면/입력을 통합했다. 새 모델은 슬롯형·게이지형 규칙과 실행취소 기록만 사용하며 보상 표시·선택을 제공하지 않는다. 현재 기본 `npm.cmd test`는 33개이며 모두 통과한다. 결과와 남은 검증 한계는 [GPT_TRACK2_STATUS.md](GPT_TRACK2_STATUS.md)를 따른다.
 
 # DECKROOM 작업 지침
