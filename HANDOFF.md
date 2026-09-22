@@ -2,6 +2,8 @@
 
 # DECKROOM 인수인계
 
+> 2026-09-22 완료 카드 상시 표시 Track2 완료: 완료 카드는 수량·체크를 유지하며 실제 액션 한계에서만 비활성화한다. 개인 목표 달성 게이지는 계속 증가 가능하다. Claude 배지 변경 `4e7cfc0`을 유지하고 기본 검사 79/79 및 실제 엔진 웹 클릭 흐름을 확인했다. 상세는 [GPT_CARD_VISIBILITY_REPORT.md](GPT_CARD_VISIBILITY_REPORT.md). 아래 카드 표시가 대기 중이라는 설명은 이전 시점 기록이다.
+
 > 2026-09-22 설정 다이얼로그 재설계 완료: 설정 5개 섹션, 마법사 단계 표시, 상세 헤더 및 버튼 역할 구분을 적용했다. 기능 로직 변경 없이 기본 검사 77/77 통과, 격리된 Chromium 웹 화면에서 기존 설정 동작과 최소 크기 배치를 확인했다. 상세는 [GPT_SETTINGS_REDESIGN_REPORT.md](GPT_SETTINGS_REDESIGN_REPORT.md). 카드 상시 표시·배지 개편은 별도 작업이다.
 
 > 2026-09-21 Stage A Track2 구현·해당 범위 검증 완료: 외부 JSON 내보내기(Windows 저장/취소 및 웹 다운로드), 일정 저장 API 연결, 변환 안내. Track1 `44ee683`과 실제 API 연결 확인. 기본 테스트 55/55, 별도 신규 테스트 15/15 통과. 신규 두 테스트의 기본 명령 등록은 공용 패키지 담당자에게 인계한다. 상세 계약·검증 한계·복구는 [GPT_STAGE_A_TRACK2_REPORT.md](GPT_STAGE_A_TRACK2_REPORT.md). 아래 L1 및 이전 단계의 검사 수는 당시 기록이며 Stage A 전체 완료를 뜻하지 않는다.

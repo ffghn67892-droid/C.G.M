@@ -37,7 +37,6 @@ function trackerConversionNotice(g) {
 function trackerRuleCard(r, p) {
   const ended = r.format === 'fixed' && p.ended;
   const value = r.kind === 'slot' ? p.held : p.value;
-  if (!ended && (r.kind === 'slot' ? value <= 0 : value >= r.max)) return '';
   const name = escapeHtml(r.name || '이름 없는 항목');
   const ruleId = escapeHtml(r.id);
   const pending =
@@ -46,6 +45,12 @@ function trackerRuleCard(r, p) {
     Date.parse(r.startDate.length === 10 ? r.startDate + 'T00:00:00+09:00' : r.startDate) >
       Date.now();
   const achieved = r.kind === 'gauge' && p.foldTarget != null && value >= p.foldTarget;
+  // hardDone mirrors the engine's own complete/increment gates exactly (catalog-engine.js
+  // catalogAction) - only here do we disable the button, so "disabled" never promises a
+  // click the engine would reject anyway.
+  const hardDone = r.kind === 'slot' ? value <= 0 : value >= r.max;
+  const done = achieved || hardDone;
+  const checkmark = done ? '<span class="tracker-check" aria-hidden="true">✓</span>' : '';
   const count =
     r.kind === 'slot'
       ? `<span class="tracker-caption">남은 수</span><strong class="tracker-number">${value}</strong>`
@@ -59,10 +64,12 @@ function trackerRuleCard(r, p) {
           })
           .join('')
       : '';
-  const content = `<span class="tracker-name">${name}</span>${count}${achieved ? `<span class="tracker-achieved">개인 목표 ${p.foldTarget} 달성</span>` : ''}${milestones ? `<span class="tracker-milestones">${milestones}</span>` : ''}`;
+  const content = `<span class="tracker-name">${name}${checkmark}</span>${count}${achieved ? `<span class="tracker-achieved">개인 목표 ${p.foldTarget} 달성</span>` : ''}${milestones ? `<span class="tracker-milestones">${milestones}</span>` : ''}`;
   if (ended)
     return `<section class="tracker-card tracker-ended" data-card="${ruleId}">${content}<span class="tracker-caption">종료됨</span><button data-catalog-action="delete-rule" data-rule-id="${ruleId}" aria-label="${name} 삭제">삭제</button></section>`;
-  return `<button class="tracker-card ${achieved ? 'tracker-goal-achieved' : ''}" data-card="${ruleId}" data-catalog-action="${r.kind === 'slot' ? 'complete' : 'increment'}" data-rule-id="${ruleId}" aria-label="${name}, ${r.kind === 'slot' ? `남은 수 ${value}, 하나 완료` : `${value} / ${r.max}, 1 증가`}" ${pending ? 'disabled' : ''}>${content}${pending ? '<span class="tracker-caption">시작 전</span>' : ''}</button>`;
+  const disabled = pending || hardDone;
+  const stateClass = hardDone ? 'tracker-done' : achieved ? 'tracker-goal-achieved' : '';
+  return `<button class="tracker-card ${stateClass}" data-card="${ruleId}" data-catalog-action="${r.kind === 'slot' ? 'complete' : 'increment'}" data-rule-id="${ruleId}" aria-label="${name}, ${hardDone ? '완료됨' : r.kind === 'slot' ? `남은 수 ${value}, 하나 완료` : `${value} / ${r.max}, 1 증가`}" ${disabled ? 'disabled' : ''}>${content}${pending ? '<span class="tracker-caption">시작 전</span>' : ''}</button>`;
 }
 function renderUniversalGame(id) {
   const g = state.games[id];

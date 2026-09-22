@@ -197,3 +197,8 @@ button.tracker-card:hover { border-color: var(--lime); background: rgb(43, 55, 3
 .manager-dialog #detailFoldTarget:hover { border-color: var(--muted); }
 .manager-dialog #detailFoldTarget:focus-visible { border-color: var(--lime); }
 .manager-dialog button:focus-visible, .manager-dialog input:focus-visible, .manager-dialog select:focus-visible { outline: 2px solid var(--lime); outline-offset: 3px; }
+
+/* Persistent tracker cards: personal goals remain actionable. */
+.tracker-check { margin-left: 6px; color: var(--lime); font-weight: 700; }
+.tracker-card.tracker-goal-achieved { border-color: var(--lime); background: rgb(38, 48, 32); }
+.tracker-card.tracker-goal-achieved:hover { border-color: var(--lime); background: rgb(46, 58, 36); }

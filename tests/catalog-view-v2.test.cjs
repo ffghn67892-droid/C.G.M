@@ -119,32 +119,40 @@ const gauge = (id = 'gauge') => ({
   milestones: [1, 2]
 });
 
-test('view contract: card clicks immediately change counts and completed cards disappear', () => {
+test('view contract: completed cards remain checked and disabled with their final counts', () => {
   const a = start([slot(), gauge()], { slot: { held: 2 }, gauge: { value: 2 } });
   a.click('complete', 'slot');
   assert.equal(a.game.ruleProgress.slot.held, 1);
   assert.match(a.card('slot').textContent, /남은 수1/);
   a.click('complete', 'slot');
-  assert.equal(a.card('slot'), undefined);
+  assert.match(a.card('slot').textContent, /남은 수0/);
+  assert.match(a.card('slot').textContent, /✓/);
+  assert.equal(a.card('slot').hasAttribute('disabled'), true);
   a.click('increment', 'gauge');
   assert.equal(a.game.ruleProgress.gauge.value, 3);
-  assert.equal(a.card('gauge'), undefined);
-  assert.match(a.text(), /남은 할 일이 없습니다/);
+  assert.ok(a.card('gauge'));
+  assert.match(a.card('gauge').textContent, /✓/);
+  assert.equal(a.card('gauge').hasAttribute('disabled'), true);
+  assert.match(a.card('gauge').getAttribute('aria-label'), /완료됨/);
+  assert.doesNotMatch(a.text(), /남은 할 일이 없습니다/);
   assert.deepEqual(
     a.calls.map(c => c.action),
     ['complete', 'complete', 'increment']
   );
   assert.ok(a.calls.every(c => c.gameId === 'game'));
-  assert.equal(a.focused.dataset.catalogAction, 'undo');
 });
 
 test('view contract: personal goal and achieved milestones stay visible below real maximum', () => {
   const a = start([gauge()], { gauge: { value: 0, foldTarget: 1, achievedMilestones: [] } });
   a.click('increment', 'gauge');
   assert.match(a.card('gauge').textContent, /개인 목표 1 달성/);
+  assert.match(a.card('gauge').textContent, /✓/);
+  assert.match(a.card('gauge').getAttribute('class'), /tracker-goal-achieved/);
+  assert.equal(a.card('gauge').hasAttribute('disabled'), false);
   assert.match(a.card('gauge').textContent, /1 달성/);
   a.click('increment', 'gauge');
   assert.match(a.card('gauge').textContent, /2 달성/);
+  assert.equal(a.game.ruleProgress.gauge.value, 2);
   assert.equal(a.focused.dataset.catalogAction, 'increment');
 });
 
@@ -169,12 +177,12 @@ test('view contract: completed ended rules remain until explicit deletion', () =
   assert.equal(a.game.rules.length, 0);
 });
 
-test('view contract: undo restores hidden cards in reverse click order', () => {
+test('view contract: undo reactivates completed cards in reverse click order', () => {
   const a = start([slot(), gauge()], { slot: { held: 1 }, gauge: { value: 2 } });
   a.click('complete', 'slot');
   a.click('increment', 'gauge');
-  assert.equal(a.card('slot'), undefined);
-  assert.equal(a.card('gauge'), undefined);
+  assert.equal(a.card('slot').hasAttribute('disabled'), true);
+  assert.equal(a.card('gauge').hasAttribute('disabled'), true);
   assert.deepEqual(
     Array.from(a.host.document.getElementsByTagName('li')).map(n => n.textContent),
     ['gauge · +1 (다음 실행취소)', 'slot · 완료']
@@ -182,10 +190,13 @@ test('view contract: undo restores hidden cards in reverse click order', () => {
   a.click('undo', 'gauge');
   assert.equal(a.game.ruleProgress.gauge.value, 2);
   assert.ok(a.card('gauge'));
-  assert.equal(a.card('slot'), undefined);
+  assert.equal(a.card('gauge').hasAttribute('disabled'), false);
+  assert.equal(a.card('slot').hasAttribute('disabled'), true);
   a.click('undo', 'slot');
   assert.equal(a.game.ruleProgress.slot.held, 1);
   assert.ok(a.card('slot'));
+  assert.equal(a.card('slot').hasAttribute('disabled'), false);
+  assert.doesNotMatch(a.card('slot').textContent, /✓/);
   assert.equal(
     a.host.buttons.some(b => b.dataset.catalogAction === 'undo'),
     false
