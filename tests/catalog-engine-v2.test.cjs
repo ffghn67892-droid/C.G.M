@@ -200,6 +200,44 @@ test('universalStatus counts only true remaining work and flags urgent when a sl
   });
 });
 
+test("universalStatus treats a gauge's personal target as done, matching the card's own checkmark state", () => {
+  const a = start();
+  seed(a, [
+    { id: 'daily-slot', name: 'A', format: 'daily', kind: 'slot', refillCount: 1, maxHeld: 3 },
+    {
+      id: 'daily-gauge',
+      name: 'B',
+      format: 'daily',
+      kind: 'gauge',
+      min: 0,
+      max: 15,
+      milestones: []
+    }
+  ]);
+  a.run("catalogAction('kards','daily-slot','complete')");
+  a.run(
+    "runCatalogAction('kards', g => { ruleProgress(g, catalogRules(g).find(r=>r.id==='daily-gauge')).foldTarget = 4; return true; })"
+  );
+  for (let i = 0; i < 4; i++) a.run("catalogAction('kards','daily-gauge','increment')");
+  assert.deepEqual(JSON.parse(a.run('JSON.stringify(universalStatus(state.games.kards))')), {
+    color: 'done',
+    label: '✓',
+    count: 0
+  });
+});
+
+test('a weekly rule never contributes to count or urgent, even at full capacity', () => {
+  const a = start();
+  seed(a, [{ id: 'w', name: 'W', format: 'weekly', kind: 'slot', refillCount: 5, maxHeld: 5 }]);
+  // fresh sync grants the full 5, i.e. "at capacity" - held >= maxHeld would set urgent for
+  // a daily/interval rule, but weekly rules are excluded from the badge entirely.
+  assert.deepEqual(JSON.parse(a.run('JSON.stringify(universalStatus(state.games.kards))')), {
+    color: 'done',
+    label: '✓',
+    count: 0
+  });
+});
+
 test('validateCatalog rejects malformed rules and accepts the KARDS/MTGA example shapes', () => {
   const a = start();
   for (const bad of [

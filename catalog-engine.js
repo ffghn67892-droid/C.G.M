@@ -303,15 +303,23 @@ function catalogAction(gameId, ruleId, action, payload = {}) {
   });
 }
 
-// count = number of rules with real remaining work (foldTarget never affects this,
-// only the true slot/gauge completion state does — Stage K2's principle, carried over).
+// count = number of rules with real remaining work. Gauges: foldTarget (falling back
+// to the true max when unset) counts as "done" here too, so the game badge agrees with
+// the card's own checkmark state instead of staying "!" until a far-off true max is
+// reached (2026-09-22, supersedes the old "foldTarget never affects this" rule). Weekly
+// rules never count toward the badge at all: they're often gated by capped daily-refill
+// progress the player can't force within the visible window, so flagging them
+// urgent/pending would be structurally misleading - the cards still render normally,
+// this only excludes them from the aggregate.
 function universalStatus(g) {
   let count = 0,
     urgent = false;
   for (const r of catalogRules(g)) {
+    if (r.format === 'weekly') continue;
     const p = ruleProgress(g, r);
     if (r.format === 'fixed' && p.ended) continue;
-    const remaining = r.kind === 'slot' ? p.held > 0 : p.value < r.max;
+    const goal = r.kind === 'gauge' ? (p.foldTarget ?? r.max) : null;
+    const remaining = r.kind === 'slot' ? p.held > 0 : p.value < goal;
     if (!remaining) continue;
     count++;
     if (r.kind === 'slot' && p.held >= r.maxHeld) urgent = true;
