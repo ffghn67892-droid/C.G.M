@@ -18,6 +18,8 @@ function statusBadgeHtml(status, ariaLabel) {
   return `<span class="status-badge"${ariaLabel ? ` aria-label="${escapeHtml(ariaLabel)}"` : ''}><b class="status-dot ${status.color}">${remaining ? '!' : escapeHtml(status.label)}</b>${remaining ? `<b class="status-count">${status.count}</b>` : ''}</span>`;
 }
 function renderNavigation() {
+  let draggingId = null;
+  let suppressClick = false;
   $('body').classList.toggle('shadowverse-view', state.activeGame === 'shadowverse');
   const registered = orderedGameIds(GAMES.map(([id]) => id))
     .map(id => GAMES.find(([gid]) => gid === id))
@@ -35,17 +37,70 @@ function renderNavigation() {
               : status.color === 'pending'
                 ? '진행 중'
                 : status.label;
-        return `<button class="game-tab ${state.activeGame === id ? 'active' : ''}" data-game="${id}" role="tab" aria-selected="${state.activeGame === id}"><span class="game-tab-mark ${color}">${mark}</span><span>${escapeHtml(name)}</span>${statusBadgeHtml(status, ariaLabel)}</button>`;
+        return `<button class="game-tab ${state.activeGame === id ? 'active' : ''}" data-game="${id}" draggable="true" role="tab" aria-selected="${state.activeGame === id}"><span class="game-tab-mark ${color}">${mark}</span><span>${escapeHtml(name)}</span>${statusBadgeHtml(status, ariaLabel)}</button>`;
       })
       .join('') +
     `<button class="game-tab" id="newGameTab" type="button"><span class="game-tab-mark lime">+</span><span>새 게임 만들기</span></button>`;
   $$('.game-tab[data-game]').forEach(b =>
     b.addEventListener('click', () => {
+      if (suppressClick) return;
       state.activeGame = b.dataset.game;
       save();
       renderAll();
     })
   );
+  const tabs = $$('.game-tab[data-game]').filter(b => b.dataset.game !== 'overview');
+  const clearInsertion = () => tabs.forEach(b => b.classList.remove('drop-before', 'drop-after'));
+  const clearDrag = () => {
+    draggingId = null;
+    clearInsertion();
+    tabs.forEach(b => b.classList.remove('dragging'));
+  };
+  tabs.forEach(b => {
+    b.addEventListener('dragstart', event => {
+      draggingId = b.dataset.game;
+      suppressClick = true;
+      b.classList.add('dragging');
+      event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData('text/plain', draggingId);
+    });
+    b.addEventListener('dragover', event => {
+      clearInsertion();
+      if (!draggingId || draggingId === b.dataset.game) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = 'move';
+      const rect = b.getBoundingClientRect();
+      b.classList.add(event.clientY < rect.top + rect.height / 2 ? 'drop-before' : 'drop-after');
+    });
+    b.addEventListener('dragleave', event => {
+      if (!b.contains(event.relatedTarget)) b.classList.remove('drop-before', 'drop-after');
+    });
+    b.addEventListener('drop', event => {
+      if (!draggingId || draggingId === b.dataset.game) return;
+      event.preventDefault();
+      const rect = b.getBoundingClientRect();
+      // Exclude the source: dropping immediately before it must not pass itself
+      // as beforeId, which the storage API would interpret as the end of the list.
+      const targets = tabs.filter(tab => tab.dataset.game !== draggingId);
+      const beforeId =
+        event.clientY < rect.top + rect.height / 2
+          ? b.dataset.game
+          : (targets[targets.indexOf(b) + 1]?.dataset.game ?? null);
+      try {
+        moveGameOrder(draggingId, beforeId);
+      } finally {
+        clearDrag();
+        renderNavigation();
+      }
+    });
+    b.addEventListener('dragend', () => {
+      clearDrag();
+      // Ignore only a click accompanying drag release; the next normal click works.
+      setTimeout(() => {
+        suppressClick = false;
+      }, 0);
+    });
+  });
   $('#newGameTab').addEventListener('click', () => openCustomSetup());
 }
 function spendingText(p) {

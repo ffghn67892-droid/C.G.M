@@ -1,3 +1,5 @@
+> 2026-09-23 게임 탭 드래그 구현 완료: 등록 게임 탭의 앞/뒤 삽입, 고정 버튼 제외, 취소 정리 및 기존 저장 API 연동. 기본 검사 83/83와 Chromium 마우스 드래그·클릭·새로고침 순서 유지 검증 통과. 상세는 [GPT_GAME_TAB_DRAG_REPORT.md](GPT_GAME_TAB_DRAG_REPORT.md)를 따른다.
+
 > 2026-09-23 Stage D Track2 구현 완료: 규칙 편집기의 시간 간격 포맷, 기준 시각·분 단위 입력, 즉시 검증 및 기존 프리셋 편집 지원. 기본 검사 79/79와 실제 Chromium 생성·수정·프리셋 재저장 검증 통과. 카드 일정 표시 제한 등 상세는 [GPT_STAGE_D_TRACK2_REPORT.md](GPT_STAGE_D_TRACK2_REPORT.md)를 따른다.
 
 > 2026-09-22 항목 순서 변경·새 게임 마법사 재설계 완료: ▲▼ 이동, 편집 초안 유지 및 렌더링 후 포커스 복원, 생성 3단계 스타일 통일. 기본 검사 79/79와 격리 Chromium의 저장·취소·실행취소·키보드·생성 흐름 검증 통과. 범위와 한계는 [GPT_ITEM_ORDER_AND_NEW_GAME_REPORT.md](GPT_ITEM_ORDER_AND_NEW_GAME_REPORT.md)를 따른다.
