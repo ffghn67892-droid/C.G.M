@@ -11,6 +11,23 @@ function validateRuleCatalog(rules) {
 function isCustomGame(id) {
   return !!state.customGames?.some(x => x[0] === id);
 }
+// state.gameOrder is a user-customized sidebar tab order (absent until the user first
+// drags a tab). Stable sort keeps GAMES' hardcoded order for any id not yet in it, so
+// new/never-dragged games simply take their natural GAMES position.
+function orderedGameIds(ids) {
+  const rank = new Map((state.gameOrder || []).map((id, i) => [id, i]));
+  return [...ids].sort((a, b) => (rank.get(a) ?? Infinity) - (rank.get(b) ?? Infinity));
+}
+// Moves `id` to just before `beforeId` (or to the end if beforeId is null/absent) and
+// persists the FULL resulting order over every known game - from this point on
+// state.gameOrder is authoritative, not a sparse override.
+function moveGameOrder(id, beforeId) {
+  const ids = orderedGameIds(GAMES.map(([gid]) => gid)).filter(x => x !== id);
+  const at = beforeId ? ids.indexOf(beforeId) : -1;
+  ids.splice(at < 0 ? ids.length : at, 0, id);
+  state.gameOrder = ids;
+  save();
+}
 function syncCatalog(g, now = new Date()) {
   return syncUniversalCatalog(g, now);
 }

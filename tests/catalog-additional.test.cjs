@@ -123,6 +123,43 @@ test('unregistered games are hidden until created; overview shows an empty state
   assert.ok(a.document.querySelector('#newGameTab'));
 });
 
+// 'overview' ("메인") also carries data-game and must never take part in drag reordering.
+function sidebarGameIds(app) {
+  return app.document
+    .querySelectorAll('#gameSwitcher .game-tab[data-game]')
+    .map(el => el.getAttribute('data-game'))
+    .filter(id => id !== 'overview');
+}
+test('sidebar tabs render in GAMES order until the user drags one', () => {
+  const a = start();
+  a.run("state.activeGame='overview';renderAll()");
+  assert.deepEqual(sidebarGameIds(a), JSON.parse(a.run('JSON.stringify(GAMES.map(([id]) => id))')));
+});
+test('moveGameOrder reorders the sidebar and persists across a reload', () => {
+  const a = start();
+  a.run("moveGameOrder('snap','kards');state.activeGame='overview';renderAll()");
+  const ids = sidebarGameIds(a);
+  assert.equal(ids.indexOf('snap'), ids.indexOf('kards') - 1);
+  const reloaded = start(a.saved());
+  reloaded.run("state.activeGame='overview';renderAll()");
+  assert.deepEqual(sidebarGameIds(reloaded), ids);
+});
+test('moveGameOrder with a null target moves the game to the end', () => {
+  const a = start();
+  a.run("moveGameOrder('kards',null);state.activeGame='overview';renderAll()");
+  assert.equal(sidebarGameIds(a).at(-1), 'kards');
+});
+test('a game absent from a partial gameOrder keeps its natural GAMES position', () => {
+  const a = start();
+  a.run("state.gameOrder=['snap'];state.activeGame='overview';renderAll()");
+  const ids = sidebarGameIds(a);
+  assert.equal(ids[0], 'snap');
+  assert.deepEqual(
+    ids.slice(1),
+    JSON.parse(a.run("JSON.stringify(GAMES.map(([id]) => id).filter(id => id !== 'snap'))"))
+  );
+});
+
 test('Might 01:00 and login04:40 periods change at exact millisecond', () => {
   const a = start();
   for (const [hour, minute] of [

@@ -19,7 +19,9 @@ function statusBadgeHtml(status, ariaLabel) {
 }
 function renderNavigation() {
   $('body').classList.toggle('shadowverse-view', state.activeGame === 'shadowverse');
-  const registered = GAMES.filter(([id]) => state.games[id]?.profile?.registeredAt);
+  const registered = orderedGameIds(GAMES.map(([id]) => id))
+    .map(id => GAMES.find(([gid]) => gid === id))
+    .filter(([id]) => state.games[id]?.profile?.registeredAt);
   $('#gameSwitcher').innerHTML =
     `<button class="game-tab ${state.activeGame === 'overview' ? 'active' : ''}" data-game="overview" role="tab" aria-selected="${state.activeGame === 'overview'}"><span class="game-tab-mark lime">⌂</span><span>메인</span></button>` +
     registered

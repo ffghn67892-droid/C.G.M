@@ -296,7 +296,18 @@ Track 2는 게임 설정 화면에서 `game.resetSchedule = {...}`를 직접 대
 - 화면 표시용 `ruleScheduleText`는 `intervalLengthText()`로 사람이 읽기 쉬운 형태를 만든다 — 30 → "30분", 480 → "8시간", 90 → "1시간 30분".
 - 프리셋 반영: 마블 스냅의 "일반 임무"(옛 04:00/12:00/20:00 KST 3회 갱신을 근사 없이 그대로 표현 - `anchorTime:'04:00'`, `intervalMinutes:480`, `refillCount:2`, `maxHeld:6`), 포켓몬 포켓의 "무료 팩"/"챌린지 파워"(`intervalMinutes:720`, `maxHeld` 2/5), 듀얼링크스의 "일반 듀얼리스트"(`intervalMinutes:30`, `maxHeld:10`) - 셋 다 이전에는 `resource` 타입(지속 충전)이라 새 모델에 대응 개념이 없어 제외됐던 항목이다. 자세한 트레이드오프는 catalog-presets.js 헤더 주석 참고.
 - `tests/catalog-interval-v2.test.cjs`(7개)로 검증 - `npm test` 77/77 통과(Stage A까지의 70 + 이번 7).
-- 편집기(Track 2) UI는 아직 이 포맷을 만들 방법이 없다 - 마법사에 "시간 간격" 옵션과 기준 시각/간격(분) 입력을 추가해야 사용자가 직접 새 규칙으로 만들 수 있다. 프리셋으로 생성하는 경로(Snap/포켓몬 포켓/듀얼링크스)는 편집기 변경 없이 이미 완전히 동작한다.
+- **편집기(Track 2) UI 완료(2026-09-23, `37d7cc3`)**: 마법사 1단계 포맷 선택에 "시간 간격"이 추가됐고, `anchorTime`/`intervalMinutes` 입력·즉시 검증(`validateTrackerInterval`)·`capture()` 반영·확인 화면 문구까지 전부 구현됐다. 기존 프리셋의 interval 규칙(Snap/포켓몬 포켓/듀얼링크스)을 마법사로 열어 수정·재저장해도 값이 보존된다. 자세한 범위는 `GPT_STAGE_D_TRACK2_REPORT.md` 참고.
+
+### 사이드바 게임 탭 순서 — `state.gameOrder` / `orderedGameIds(ids)` / `moveGameOrder(id, beforeId)` (2026-09-23, `game-config.js`)
+
+사용자가 직접 요청: "왼쪽 게임 탭 이동 버튼의 순서를 바꿀 수 있도록... 탭을 누르고 드래그 하면 이동시킬 수 있도록 해." 이전엔 사이드바 탭 순서를 바꿀 저장 공간 자체가 없었다 — `overview.js`의 `renderNavigation()`이 매 부팅마다 하드코딩된 순서로 초기화되는 `GAMES`(game-data.js) 배열을 그대로 순회했다.
+
+- `state.gameOrder`: 게임 id 문자열 배열. **사용자가 처음 드래그하기 전엔 존재하지 않는다** — 없어도 정렬 함수가 `GAMES`의 기본 순서로 자연 폴백하므로 별도 마이그레이션이 필요 없다.
+- `orderedGameIds(ids)`: 순수 함수. `state.gameOrder`에 있는 id는 그 순서대로, 없는 id는(신규/한 번도 안 옮긴 게임) 안정 정렬(stable sort)로 원래 `ids` 순서를 유지한 채 뒤로 밀린다.
+- `moveGameOrder(id, beforeId)`: 유일한 쓰기 지점. `id`를 `beforeId` 바로 앞으로 옮기고(`beforeId`가 `null`/없으면 맨 끝) **`GAMES`의 전체 id 집합에 대해 완전한 순서**를 `state.gameOrder`에 저장한다 — 이후로는 부분 오버라이드가 아니라 항상 전체가 채워진 배열이 된다. 저장까지 수행(`save()` 호출).
+- `renderNavigation()`(overview.js)은 `GAMES.filter(등록됨)` 대신 `orderedGameIds(GAMES.map(id)).map(...).filter(등록됨)`으로 정렬 후 필터한다. "메인"(`data-game="overview"`)과 "새 게임 만들기" 버튼은 이 순서 개념에 포함되지 않는다 — 드래그 UI(Track 2)도 이 둘을 드래그/드롭 대상에서 제외해야 한다.
+- `tests/catalog-additional.test.cjs`에 4개 테스트 추가(기본 폴백 순서, 재정렬 후 새로고침까지 유지, `beforeId:null`로 끝 이동, 부분 `gameOrder`에서 빠진 게임의 제자리 유지) — `npm test` 83/83 통과.
+- 드래그 앤 드롭 인터랙션(이벤트 바인딩, 삽입 위치 판정, 시각 효과)은 `GPT_TASK_BRIEF_GAME_TAB_DRAG.md`로 Track 2에 위임했다 — 이 함수들을 호출하기만 하면 되고 정렬/저장 로직은 건드릴 필요가 없다.
 
 ---
 
