@@ -134,4 +134,20 @@ function renderUniversalGame(id) {
   });
 }
 // Kept for the renderer shell; the tracker has no resource recovery clocks.
-function updateCatalogClocks() {}
+function updateCatalogClocks() {
+  const now = Date.now();
+  $$('.realtime-row').forEach(row => {
+    const el = row.querySelector('.realtime-countdown');
+    if (!el) return;
+    const remaining = Number(row.dataset.nextAt) - now;
+    if (!Number.isFinite(remaining) || remaining <= 0) {
+      el.textContent = '갱신 대기 중…';
+      return;
+    }
+    const seconds = Math.ceil(remaining / 1000);
+    const h = Math.floor(seconds / 3600),
+      m = Math.floor((seconds % 3600) / 60),
+      s = seconds % 60;
+    el.textContent = `${h ? `${h}시간 ` : ''}${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')} 남음`;
+  });
+}

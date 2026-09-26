@@ -113,10 +113,27 @@ function spendingText(p) {
   );
 }
 function renderOverview() {
+  const now = new Date();
+  const schedule = todaySchedule(now);
+  const realtime = realtimeRefreshList(now);
+  const pad = n => String(n).padStart(2, '0');
+  const dateLabel = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} (${'일월화수목금토'[kstWeekday(now)]}요일)`;
+  const scheduleHtml = schedule.length
+    ? `<section class="guide-card today-schedule"><span class="section-kicker">일정 · KST</span><div class="settings-section-head"><span class="game-tab-mark lime">⟳</span><h3>${dateLabel} 오늘의 시간표</h3></div>${schedule
+        .map(row => {
+          const time = new Date(row.ms);
+          return `<div class="schedule-row"><span class="schedule-time">${pad(time.getHours())}:${pad(time.getMinutes())}</span><div class="schedule-games">${row.games.map(g => `<p>${escapeHtml(g.name)} / ${g.items.map(name => `[${escapeHtml(name)}]`).join(', ')} 업데이트</p>`).join('')}</div></div>`;
+        })
+        .join('')}</section>`
+    : '';
+  const realtimeHtml = realtime.length
+    ? `<section class="guide-card realtime-refresh"><span class="section-kicker">실시간</span><div class="settings-section-head"><span class="game-tab-mark blue">◎</span><h3>실시간 갱신 목록</h3></div>${realtime.map(row => `<p class="realtime-row" data-next-at="${row.nextAt}">${escapeHtml(row.gameName)} · ${escapeHtml(row.ruleName)} — <span class="realtime-countdown"></span></p>`).join('')}</section>`
+    : '';
+
   const searchTerm = ($('#gameSearch')?.value || '').trim();
   const registered = GAMES.filter(([id]) => state.games[id]?.profile?.registeredAt);
   $('#questList').innerHTML =
-    `<div class="overview-heading"><h2>메인</h2><input type="search" id="gameSearch" placeholder="게임 검색" aria-label="게임 검색" value="${escapeHtml(searchTerm)}" /><label><input type="checkbox" id="trayOption" ${state.tray ? 'checked' : ''} />닫을 때 트레이에 유지</label></div>${
+    `<div class="overview-heading"><h2>메인</h2><input type="search" id="gameSearch" placeholder="게임 검색" aria-label="게임 검색" value="${escapeHtml(searchTerm)}" /><label><input type="checkbox" id="trayOption" ${state.tray ? 'checked' : ''} />닫을 때 트레이에 유지</label></div>${scheduleHtml}${realtimeHtml}${
       registered.length
         ? `<div class="overview-grid">${registered
             .map(([id, name]) => {
@@ -129,6 +146,7 @@ function renderOverview() {
             .join('')}</div>`
         : `<p class="muted overview-empty">등록된 게임이 없습니다. 위의 "게임 추가" 버튼이나 사이드바의 "새 게임 만들기"로 시작하세요.</p>`
     }<p class="muted" id="gameSearchEmpty" hidden>일치하는 게임이 없습니다.</p><p class="muted">트레이 유지 중에만 창을 닫아도 알림이 실행됩니다. 완전 종료하거나 PC를 끄면 알림이 멈춥니다.</p>`;
+  updateCatalogClocks();
   const applyGameSearch = () => {
     const term = $('#gameSearch').value.trim().toLowerCase();
     let visible = 0;

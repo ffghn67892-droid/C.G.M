@@ -210,3 +210,11 @@ button.tracker-card:hover { border-color: var(--lime); background: rgb(43, 55, 3
 .rule-order-move { display: flex; gap: 4px; flex: 0 0 auto; }
 .rule-order-row button { margin: 0; }
 .rule-order-move button { width: 28px; height: 28px; padding: 0; display: grid; place-items: center; }
+
+.today-schedule .schedule-row { display: flex; gap: 14px; padding: 8px 0; border-top: 1px dashed var(--line); }
+.today-schedule .schedule-time { flex: 0 0 auto; color: var(--lime); font: 600 12px "DM Mono", monospace; }
+.today-schedule .schedule-games { min-width: 0; overflow-wrap: anywhere; }
+.today-schedule .schedule-games p { margin: 0 0 4px; }
+.realtime-refresh .realtime-row { margin: 6px 0; color: var(--muted); overflow-wrap: anywhere; }
+.realtime-refresh .realtime-countdown { color: var(--cream); font-weight: 600; }
+.today-schedule, .realtime-refresh { margin-bottom: 16px; }

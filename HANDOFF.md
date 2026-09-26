@@ -1,3 +1,5 @@
+> 2026-09-27 사용 시점 회복 편집기·메인 시간표 완료: 회복 토글, 오늘 시간표 및 기존 타이머 기반 카운트다운을 연결했다. 기본 검사 98/98 및 Chromium 편집·프리셋·그룹화·완료/뮤트·초 갱신 확인. 범위와 한계는 [GPT_TODAY_SCHEDULE_REPORT.md](GPT_TODAY_SCHEDULE_REPORT.md)를 따른다.
+
 > 2026-09-23 게임 탭 드래그 구현 완료: 등록 게임 탭의 앞/뒤 삽입, 고정 버튼 제외, 취소 정리 및 기존 저장 API 연동. 기본 검사 83/83와 Chromium 마우스 드래그·클릭·새로고침 순서 유지 검증 통과. 상세는 [GPT_GAME_TAB_DRAG_REPORT.md](GPT_GAME_TAB_DRAG_REPORT.md)를 따른다.
 
 > 2026-09-23 Stage D Track2 구현 완료: 규칙 편집기의 시간 간격 포맷, 기준 시각·분 단위 입력, 즉시 검증 및 기존 프리셋 편집 지원. 기본 검사 79/79와 실제 Chromium 생성·수정·프리셋 재저장 검증 통과. 카드 일정 표시 제한 등 상세는 [GPT_STAGE_D_TRACK2_REPORT.md](GPT_STAGE_D_TRACK2_REPORT.md)를 따른다.

@@ -27,6 +27,16 @@ function trackerTimeValid(time) {
   return /^([01]\d|2[0-3]):[0-5]\d$/.test(time || '');
 }
 function validateTrackerInterval(rule) {
+  if (rule.refillOnUse) {
+    if (rule.kind !== 'slot') throw Error('사용 시점 기준 회복은 슬롯형에서만 사용할 수 있습니다.');
+    if (
+      !Number.isSafeInteger(rule.intervalMinutes) ||
+      rule.intervalMinutes < 1 ||
+      rule.intervalMinutes > 10080
+    )
+      throw Error('갱신 간격은 1~10080분의 정수로 입력하세요.');
+    return;
+  }
   if (
     !trackerTimeValid(rule.anchorTime) ||
     !Number.isSafeInteger(rule.intervalMinutes) ||
@@ -274,6 +284,8 @@ function mountUniversalEditor(initial, parent, initialSetup = false) {
         r.refillCount = 1;
         r.maxHeld = 3;
       } else {
+        delete r.refillOnUse;
+        if (r.format === 'interval') r.anchorTime ??= '00:00';
         delete r.refillCount;
         delete r.maxHeld;
         r.min = 0;
@@ -302,10 +314,12 @@ function mountUniversalEditor(initial, parent, initialSetup = false) {
               : {})
           }
         : null;
+    if (el('refillOnUse')) r.refillOnUse = el('refillOnUse').checked;
     if (el('anchorTime')) r.anchorTime = el('anchorTime').value;
     if (r.format !== 'interval') {
       delete r.anchorTime;
       delete r.intervalMinutes;
+      delete r.refillOnUse;
     }
     if (r.format === 'fixed' || r.format === 'interval') r.resetOverride = null;
   }
@@ -348,9 +362,16 @@ function mountUniversalEditor(initial, parent, initialSetup = false) {
             input('endTime', '종료 시각 (KST)', r.endTime || '00:00', 'time') +
             '<p class="wizard-help">이 시각이 지나면 규칙이 종료됩니다. 자동으로 정해지지 않으니 직접 입력하세요.</p>'
           : r.format === 'interval'
-            ? input('anchorTime', '기준 시각 (KST)', r.anchorTime ?? '00:00', 'time') +
+            ? (r.kind === 'slot'
+                ? `<label class="check-field"><input data-rule-field="refillOnUse" type="checkbox" ${r.refillOnUse ? 'checked' : ''} />사용 시점 기준 회복</label>`
+                : '') +
+              (r.refillOnUse
+                ? ''
+                : input('anchorTime', '기준 시각 (KST)', r.anchorTime ?? '00:00', 'time')) +
               input('intervalMinutes', '갱신 간격 (분)', r.intervalMinutes ?? 480, 'number') +
-              '<p class="wizard-help">기준 시각부터 이 간격마다 반복됩니다. 1~10080분 · 30분은 30, 8시간은 480을 입력하세요.</p>'
+              (r.refillOnUse
+                ? '<p class="wizard-help">가득 찬 상태에서 처음 줄어든 시점부터 회복하며, 추가로 소모해도 타이머가 다시 시작하지 않습니다. 예: 간격 60분·갱신 수 1개일 때 12:00과 12:05에 소모하면 13:00과 14:00에 순서대로 회복됩니다. 간격은 1~10080분입니다.</p>'
+                : '<p class="wizard-help">기준 시각부터 이 간격마다 반복됩니다. 1~10080분 · 30분은 30, 8시간은 480을 입력하세요.</p>')
             : '<p class="wizard-help">게임의 기본 리셋 시각을 따릅니다.</p>');
     if (step === 2)
       body =
@@ -384,7 +405,7 @@ function mountUniversalEditor(initial, parent, initialSetup = false) {
         }`;
     }
     if (step === 4)
-      body = `<p>${escapeHtml(r.name)} · ${{ daily: '일일', weekly: '주간', fixed: '지정 기간', interval: '시간 간격' }[r.format]} · ${r.kind === 'slot' ? '슬롯형' : '게이지형'}</p><p>${r.kind === 'slot' ? `갱신 ${r.refillCount}개 · 최대 ${r.maxHeld}개` : `${r.min} → ${r.max} · 마일스톤 ${(r.milestones || []).join(', ') || '없음'}`}</p>${r.format === 'fixed' ? `<p>${escapeHtml(r.startDate || '')} ~ ${escapeHtml(r.endDate || '')} ${escapeHtml(r.endTime || '')} KST</p>` : r.format === 'interval' ? `<p>${escapeHtml(r.anchorTime || '')} 기준 매 ${escapeHtml(intervalLengthText(r.intervalMinutes))}마다 KST</p>` : `<p>리셋: ${r.resetOverride ? escapeHtml(r.resetOverride.time) : '게임 기본값'}</p>`}<p class="wizard-help">규칙 저장 버튼을 누르면 적용됩니다.</p>`;
+      body = `<p>${escapeHtml(r.name)} · ${{ daily: '일일', weekly: '주간', fixed: '지정 기간', interval: '시간 간격' }[r.format]} · ${r.kind === 'slot' ? '슬롯형' : '게이지형'}</p><p>${r.kind === 'slot' ? `갱신 ${r.refillCount}개 · 최대 ${r.maxHeld}개` : `${r.min} → ${r.max} · 마일스톤 ${(r.milestones || []).join(', ') || '없음'}`}</p>${r.format === 'fixed' ? `<p>${escapeHtml(r.startDate || '')} ~ ${escapeHtml(r.endDate || '')} ${escapeHtml(r.endTime || '')} KST</p>` : r.format === 'interval' ? (r.refillOnUse ? `<p>사용 시점 기준 매 ${escapeHtml(intervalLengthText(r.intervalMinutes))}마다 회복</p>` : `<p>${escapeHtml(r.anchorTime || '')} 기준 매 ${escapeHtml(intervalLengthText(r.intervalMinutes))}마다 KST</p>`) : `<p>리셋: ${r.resetOverride ? escapeHtml(r.resetOverride.time) : '게임 기본값'}</p>`}<p class="wizard-help">규칙 저장 버튼을 누르면 적용됩니다.</p>`;
     host.innerHTML = `<div class="settings-section-head"><span class="game-tab-mark violet">▦</span><h3>규칙 구성</h3></div><p class="wizard-help">항목 이름 → 포맷 → 형태 → 세부값 → 확인 순서로 입력합니다.</p><div class="rule-order-list" role="list" aria-label="항목 순서">${draft.map((x, i) => `<div class="rule-order-row" role="listitem"><button class="rule-order-name" data-edit-rule="${i}" aria-pressed="${selected === i}">${escapeHtml(x.name)}</button><span class="rule-order-move"><button data-move-rule="${i}" data-move-dir="up" aria-label="${escapeHtml(x.name)} 위로 이동" ${i === 0 ? 'disabled' : ''}>▲</button><button data-move-rule="${i}" data-move-dir="down" aria-label="${escapeHtml(x.name)} 아래로 이동" ${i === draft.length - 1 ? 'disabled' : ''}>▼</button></span></div>`).join('')}</div><button id="addTrackerRule">항목 추가</button><div class="wizard-steps" role="list" aria-label="5단계 중 ${step + 1}단계">${names.map((n, i) => `<span class="wizard-step ${i === step ? 'current' : i < step ? 'done' : ''}" role="listitem"><b>${i + 1}</b></span>`).join('')}</div><p class="wizard-progress">${step + 1} / 5 · ${names[step]}</p><div class="form-grid">${body}</div><div class="wizard-nav"><div class="wizard-nav-primary">${step > 0 ? '<button id="wizardPrev">이전</button>' : ''}${step < 4 ? '<button id="wizardNext">다음</button>' : '<button id="editRuleStart">항목 수정</button>'}</div><div class="wizard-nav-danger"><button id="removeRule" class="danger">항목 삭제</button></div></div><p data-rule-error role="status"></p>`;
     const bind = (selector, fn) =>
       host
@@ -436,7 +457,7 @@ function mountUniversalEditor(initial, parent, initialSetup = false) {
       selected = Math.max(0, selected - 1);
       step = 4;
     });
-    for (const key of ['format', 'kind', 'override'])
+    for (const key of ['format', 'kind', 'override', 'refillOnUse'])
       host
         .querySelector(`[data-rule-field="${key}"]`)
         ?.addEventListener('change', () => edit(() => {}));
