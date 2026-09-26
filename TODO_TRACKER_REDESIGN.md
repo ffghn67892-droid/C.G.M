@@ -335,6 +335,14 @@ Track 2는 게임 설정 화면에서 `game.resetSchedule = {...}`를 직접 대
 - 둘 다 순수 함수(state 변경 없음) — UI는 렌더마다 호출만 하면 된다. `tests/catalog-additional.test.cjs`에 7개 추가(시각 그룹화, 클리어/뮤트 제외, 주간 요일 불일치 제외, 코스 간격은 시간표에, 짧은 간격은 실시간으로, `refillOnUse`는 간격 길이 무관 항상 실시간으로, 이미 가득 찬 건 실시간 목록서도 제외).
 - UI(Track 2): `GPT_TASK_BRIEF_TODAY_SCHEDULE.md`로 위임 — `overview.js`의 `renderOverview()`에 두 섹션 추가, 실시간 목록의 초 단위 갱신은 `manager.js`의 기존 훅 `updateCatalogClocks()`(지금까지 빈 함수)를 재사용.
 
+### `nextRuleBoundary` 수정 — interval 규칙의 스케줄러 오작동 (2026-09-27, refresh-scheduler.js/catalog-engine.js)
+
+위 Track2 작업을 검증하던 중(사용자에게 직접 보고 후 수정 지시받음) 발견: `refresh-scheduler.js`의 `nextRuleBoundary(g, r, now)`가 `format:'fixed'`가 아닌 모든 규칙에 `ruleResetSchedule(g, r)`을 그대로 썼다 — 이 함수는 `interval` 포맷을 전혀 모르고 **게임의 `dailyTime`을 그대로 반환**한다. 그 결과 스냅/포켓몬 포켓/듀얼링크스처럼 `interval` 규칙이 있는 모든 게임에서, "다음에 화면을 강제로 다시 계산할 시각"이 그 규칙의 실제 앵커/회복 시각이 아니라 게임의 무관한 일일 리셋 시각으로 계산되고 있었다(크래시는 아니고 부정확한 스케줄링 — `g.resetSchedule`이 아예 없으면 크래시까지 났지만 실제 서비스에선 등록 시 항상 채워지므로 도달 안 함). `refillOnUse` 규칙은 `p.period`를 아예 안 쓰다 보니(자체 `p.refillAnchorAt` 기반) `rebuildRefreshDeadline`의 "경계가 바뀌었는지" 체크가 항상 `p.period===undefined`로 걸려 매초 강제 전체 재동기화가 도는 부수 문제도 있었다.
+
+- `nextRuleBoundary`: `format==='interval'`이면 `ruleResetSchedule`을 아예 안 거친다 — `refillOnUse`가 아니면 `nextIntervalOccurrence(r, now)`(game-config.js, 이미 있는 함수 재사용), `refillOnUse`면 `p.refillAnchorAt`이 없을 땐(가득 차서 대기 중인 게 없음) `Infinity`, 있으면 `anchor + intervalMinutes*60000`.
+- `syncUniversalCatalog`의 `refillOnUse` 분기에 `p.period = rulePeriod(g, r, now)` 한 줄 추가 — 실제 진행은 여전히 `p.refillAnchorAt`이 담당하고, 이건 순수히 스케줄러의 "경계 변화 감지" 부기용.
+- `tests/catalog-interval-v2.test.cjs`에 회귀 테스트 3개 추가(고정 앵커 interval의 정확한 다음 경계, `refillOnUse`의 anchor 기반 다음 경계, 안정 상태에서 `synchronizeScheduledGames()`가 매초 강제 재동기화하지 않는지) — `npm test` 101/101 통과.
+
 ---
 
 **통합 확인(2026-09-19): 위 계약은 확정본이다.** Track 1이 실제로 `catalog-engine.js`를 구현했고, Track 2가 이미 작성해 둔 `catalog-view.js`/`catalog-editor.js`/`setup.js`와 실제 harness(브라우저 아님, node:test용 DOM 어댑터)를 통해 카드 렌더링·클릭 완료/증가·되돌리기·지정 기간 종료/삭제·패스 레벨 수동 증가까지 end-to-end로 맞물려 동작하는 것을 확인했다. `manager.js`/`alerts.js`/`refresh-scheduler.js`/`overview.js`(둘 다 원래 소유 트랙 없음)의 옛 시그니처 호출부도 이번에 같이 맞췄다 — 자세한 내용은 GPT_TRACK2_STATUS.md의 "Claude 확인 사항"을 참고.

@@ -407,3 +407,81 @@ test('refillOnUse rules skip anchorTime validation but still require kind slot a
     'refillOnUse is slot-only'
   );
 });
+
+// refresh-scheduler.js's nextRuleBoundary (2026-09-27 fix): previously fell through to the
+// daily/weekly branch for EVERY non-fixed format, using ruleResetSchedule(g,r) - which
+// doesn't know about 'interval' at all and silently returns the GAME's unrelated dailyTime
+// (here 09:00, not the rule's own anchor/refillAnchorAt). That made the scheduler wake up
+// at the wrong moment for every interval rule, and crashed outright whenever
+// g.resetSchedule was absent even though the rule itself never needed it.
+test("nextRuleBoundary for a fixed-anchor interval rule ignores the game's unrelated dailyTime", () => {
+  const a = start();
+  a.setTime('2026-09-10T00:00:00+09:00');
+  seed(a, [
+    {
+      id: 'm',
+      name: '일반 임무',
+      format: 'interval',
+      kind: 'slot',
+      refillCount: 2,
+      maxHeld: 6,
+      anchorTime: '04:00',
+      intervalMinutes: 480
+    }
+  ]);
+  const boundary = a.run('nextRuleBoundary(state.games.kards, catalogRules(state.games.kards)[0])');
+  assert.equal(boundary, Date.parse('2026-09-10T04:00:00+09:00'), 'next 8h occurrence, not 09:00');
+});
+
+test('nextRuleBoundary for a refillOnUse rule tracks its own anchor, not any fixed clock', () => {
+  const a = start();
+  a.setTime('2026-09-10T12:00:00+09:00');
+  seed(a, [
+    {
+      id: 'r',
+      name: '회복형',
+      format: 'interval',
+      kind: 'slot',
+      refillCount: 1,
+      maxHeld: 2,
+      intervalMinutes: 60,
+      refillOnUse: true
+    }
+  ]);
+  const rule = () => 'catalogRules(state.games.kards)[0]';
+  assert.equal(
+    a.run(`nextRuleBoundary(state.games.kards, ${rule()})`),
+    Infinity,
+    'full and not depleting - nothing scheduled yet'
+  );
+  a.run("catalogAction('kards','r','complete')");
+  assert.equal(
+    a.run(`nextRuleBoundary(state.games.kards, ${rule()})`),
+    Date.parse('2026-09-10T13:00:00+09:00'),
+    'one interval after the anchor set by the click, not the game dailyTime'
+  );
+});
+
+test('a stable registered game with an interval rule does not force a full resync every tick', () => {
+  const a = start();
+  a.setTime('2026-09-10T00:00:00+09:00');
+  seed(a, [
+    {
+      id: 'r',
+      name: '회복형',
+      format: 'interval',
+      kind: 'slot',
+      refillCount: 1,
+      maxHeld: 2,
+      intervalMinutes: 60,
+      refillOnUse: true
+    }
+  ]);
+  a.run('synchronizeScheduledGames(true)');
+  a.advance(1000);
+  assert.equal(
+    a.run('synchronizeScheduledGames()'),
+    false,
+    'nothing changed in the last second - the cheap path should short-circuit, not force a full resync'
+  );
+});

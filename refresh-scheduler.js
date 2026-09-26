@@ -17,8 +17,17 @@ function alertScheduleInput(g) {
   ].join('|');
 }
 // Fixed-format rules have no recurring boundary; their only future event is the end date.
+// interval rules never follow g.resetSchedule (ruleResetSchedule doesn't know about them -
+// it would silently fall back to the game's unrelated dailyTime) - a fixed-anchor interval's
+// next boundary is nextIntervalOccurrence, and a refillOnUse rule only has one while an
+// anchor is actually running (a full rule has nothing scheduled until next depleted).
 function nextRuleBoundary(g, r, now = new Date()) {
   if (r.format === 'fixed') return endMomentMs(r);
+  if (r.format === 'interval') {
+    if (!r.refillOnUse) return nextIntervalOccurrence(r, now);
+    const anchor = ruleProgress(g, r).refillAnchorAt;
+    return anchor == null ? Infinity : anchor + r.intervalMinutes * 60000;
+  }
   const sched = ruleResetSchedule(g, r),
     period = rulePeriod(g, r, now),
     [h, m] = sched.time.split(':').map(Number);

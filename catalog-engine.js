@@ -234,6 +234,12 @@ function syncUniversalCatalog(g, now = new Date()) {
         p.held = r.maxHeld;
         p.refillAnchorAt = null;
       } else syncOnUseRefill(r, p, now);
+      // p.period isn't this branch's own progress mechanism (p.refillAnchorAt is), but
+      // refresh-scheduler.js's rebuildRefreshDeadline compares it against a fresh
+      // rulePeriod() for every non-fixed rule to detect a just-crossed boundary. Without
+      // this, p.period would stay undefined forever here and that check would force a full
+      // resync on literally every tick.
+      p.period = rulePeriod(g, r, now);
       continue;
     }
     const period = rulePeriod(g, r, now),
