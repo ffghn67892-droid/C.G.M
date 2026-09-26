@@ -160,6 +160,168 @@ test('a game absent from a partial gameOrder keeps its natural GAMES position', 
   );
 });
 
+// todaySchedule/realtimeRefreshList (game-config.js), 2026-09-27: 메인 화면 "오늘의 시간표" +
+// "실시간 갱신 목록". Pure aggregators, tested directly rather than through the DOM.
+function setRules(a, gameId, rules, resetSchedule = { dailyTime: '09:00', weeklyDay: 0 }) {
+  a.run(`
+    state.games['${gameId}'].resetSchedule = ${JSON.stringify(resetSchedule)};
+    state.games['${gameId}'].ruleCatalog = validateCatalog(${JSON.stringify(rules)});
+    state.games['${gameId}'].ruleProgress = {};
+  `);
+}
+function setHeld(a, gameId, ruleId, held) {
+  a.run(
+    `(ruleProgress(state.games['${gameId}'], catalogRules(state.games['${gameId}']).find(r => r.id === '${ruleId}')).held = ${held})`
+  );
+}
+function schedule(a) {
+  return JSON.parse(a.run('JSON.stringify(todaySchedule())'));
+}
+function realtime(a) {
+  return JSON.parse(a.run('JSON.stringify(realtimeRefreshList())'));
+}
+
+test('todaySchedule groups multiple games/rules that reset at the exact same instant', () => {
+  const a = start();
+  a.setTime('2026-09-27T00:00:00+09:00');
+  setRules(a, 'kards', [
+    { id: 'd', name: '일일 퀘스트', format: 'daily', kind: 'slot', refillCount: 1, maxHeld: 3 }
+  ]);
+  setRules(a, 'mtga', [
+    { id: 'd', name: '데일리', format: 'daily', kind: 'slot', refillCount: 1, maxHeld: 3 }
+  ]);
+  setHeld(a, 'kards', 'd', 1);
+  setHeld(a, 'mtga', 'd', 1);
+  const sched = schedule(a);
+  assert.equal(sched.length, 1, 'both reset at 09:00 - one bucket, not two');
+  const names = sched[0].games.map(x => x.name).sort();
+  assert.deepEqual(names, ['KARDS', '매직 더 게더링 아레나']);
+  assert.deepEqual(sched[0].games.find(x => x.name === 'KARDS').items, ['일일 퀘스트']);
+});
+
+test('todaySchedule drops a rule once cleared (held 0) and a game once its alarm is muted', () => {
+  const a = start();
+  a.setTime('2026-09-27T00:00:00+09:00');
+  setRules(a, 'kards', [
+    { id: 'd', name: '일일 퀘스트', format: 'daily', kind: 'slot', refillCount: 1, maxHeld: 3 }
+  ]);
+  setHeld(a, 'kards', 'd', 0);
+  assert.equal(schedule(a).length, 0, 'cleared - nothing left to show');
+  setHeld(a, 'kards', 'd', 1);
+  assert.equal(schedule(a).length, 1, 'has remaining work again');
+  a.run('state.games.kards.profile.mutedUntil = Date.now() + 3600000');
+  assert.equal(schedule(a).length, 0, "muted for today - hidden even though it's not cleared");
+});
+
+test('todaySchedule only includes a weekly rule on its actual weekday', () => {
+  const a = start();
+  a.setTime('2026-09-27T00:00:00+09:00'); // a Sunday (weekday 0)
+  setRules(
+    a,
+    'kards',
+    [{ id: 'w', name: '주간 상자', format: 'weekly', kind: 'slot', refillCount: 1, maxHeld: 1 }],
+    { dailyTime: '09:00', weeklyDay: 3 }
+  );
+  setHeld(a, 'kards', 'w', 1);
+  assert.equal(schedule(a).length, 0, "today (Sunday) isn't the rule's Wednesday");
+  a.run('state.games.kards.resetSchedule.weeklyDay = 0');
+  assert.equal(schedule(a).length, 1, 'today matches now');
+});
+
+test('a coarse fixed-anchor interval rule (Snap-like) stays in the fixed schedule at each occurrence', () => {
+  const a = start();
+  a.setTime('2026-09-27T00:00:00+09:00');
+  setRules(a, 'snap', [
+    {
+      id: 'm',
+      name: '일반 임무',
+      format: 'interval',
+      kind: 'slot',
+      refillCount: 2,
+      maxHeld: 6,
+      anchorTime: '04:00',
+      intervalMinutes: 480
+    }
+  ]);
+  setHeld(a, 'snap', 'm', 2);
+  const sched = schedule(a);
+  assert.equal(sched.length, 3, '04:00/12:00/20:00 - three occurrences today');
+  assert.equal(realtime(a).length, 0);
+});
+
+test('a fast fixed-anchor interval rule goes to the realtime list, not the fixed schedule', () => {
+  const a = start();
+  a.setTime('2026-09-27T00:00:00+09:00');
+  setRules(a, 'duel-links', [
+    {
+      id: 'd',
+      name: '일반 듀얼리스트',
+      format: 'interval',
+      kind: 'slot',
+      refillCount: 1,
+      maxHeld: 10,
+      anchorTime: '00:00',
+      intervalMinutes: 30
+    }
+  ]);
+  setHeld(a, 'duel-links', 'd', 5);
+  assert.equal(
+    schedule(a).length,
+    0,
+    'under FIXED_SCHEDULE_MIN_MINUTES - excluded from the fixed schedule'
+  );
+  const rt = realtime(a);
+  assert.equal(rt.length, 1);
+  assert.equal(rt[0].ruleName, '일반 듀얼리스트');
+});
+
+test('refillOnUse always goes to the realtime list, even with a long interval', () => {
+  const a = start();
+  a.setTime('2026-09-27T00:00:00+09:00');
+  setRules(a, 'pokemon-pocket', [
+    {
+      id: 'p',
+      name: '무료 팩',
+      format: 'interval',
+      kind: 'slot',
+      refillCount: 1,
+      maxHeld: 2,
+      intervalMinutes: 720,
+      refillOnUse: true
+    }
+  ]);
+  // fresh refillOnUse rule starts full (see catalog-engine.js) - deplete it once so it has
+  // an anchor and remaining work.
+  a.run("catalogAction('pokemon-pocket','p','complete')");
+  assert.equal(
+    schedule(a).length,
+    0,
+    'no shared anchor exists for refillOnUse rules regardless of interval length'
+  );
+  const rt = realtime(a);
+  assert.equal(rt.length, 1);
+  assert.equal(rt[0].ruleName, '무료 팩');
+});
+
+test('realtimeRefreshList excludes a slot rule that is already back at maxHeld', () => {
+  const a = start();
+  a.setTime('2026-09-27T00:00:00+09:00');
+  setRules(a, 'duel-links', [
+    {
+      id: 'd',
+      name: '일반 듀얼리스트',
+      format: 'interval',
+      kind: 'slot',
+      refillCount: 1,
+      maxHeld: 10,
+      anchorTime: '00:00',
+      intervalMinutes: 30
+    }
+  ]);
+  setHeld(a, 'duel-links', 'd', 10);
+  assert.equal(realtime(a).length, 0, 'already full - nothing to count down to');
+});
+
 test('Might 01:00 and login04:40 periods change at exact millisecond', () => {
   const a = start();
   for (const [hour, minute] of [

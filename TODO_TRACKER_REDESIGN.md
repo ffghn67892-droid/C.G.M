@@ -309,6 +309,32 @@ Track 2는 게임 설정 화면에서 `game.resetSchedule = {...}`를 직접 대
 - `tests/catalog-additional.test.cjs`에 4개 테스트 추가(기본 폴백 순서, 재정렬 후 새로고침까지 유지, `beforeId:null`로 끝 이동, 부분 `gameOrder`에서 빠진 게임의 제자리 유지) — `npm test` 83/83 통과.
 - 드래그 앤 드롭 인터랙션(이벤트 바인딩, 삽입 위치 판정, 시각 효과)은 `GPT_TASK_BRIEF_GAME_TAB_DRAG.md`로 Track 2에 위임했다 — 이 함수들을 호출하기만 하면 되고 정렬/저장 로직은 건드릴 필요가 없다.
 
+### `refillOnUse` — 사용 시점 기준 회복 (2026-09-27, catalog-engine.js/catalog-presets.js)
+
+사용자가 직접 요청: 포켓몬 포켓 "무료 팩"/"챌린지 파워"와 듀얼링크스 "일반 듀얼리스트"는 실제 게임에서 고정 앵커(마블스냅처럼 전 유저가 같은 벽시계 시각에 갱신)가 아니라, **최초로 가득 찬 상태에서 소모되는 순간**부터 개별적으로 회복 카운트가 도는 방식이다. 정확한 계약(사용자가 준 예시로 확정): 최대 2개 항목이 12:00에 2/2→1/2로 소모되면 그 순간 회복 체인의 anchor가 12:00으로 잡힌다. 5분 뒤 12:05에 또 소모(1/2→0/2)해도 **anchor는 안 바뀐다**(체인 하나만 존재, 소모마다 독립 타이머가 도는 게 아님). 그 anchor로부터 정확히 `intervalMinutes`(여기선 1시간)씩 지날 때마다 밀린 소모분을 하나씩 순서대로 회복 — 13:00에 첫 소모분이(1/2), 14:00에 두 번째 소모분이(2/2, 가득 참) 회복된다. 가득 차면 anchor는 사라지고, 다음에 또 가득 찬 상태에서 소모가 일어나야 새 anchor가 잡힌다.
+
+- `r.refillOnUse`(boolean, 신규 규칙 필드): `format==='interval' && kind==='slot'`일 때만 의미 있다. 참이면 `r.anchorTime`은 아예 안 쓴다(검증도 건너뜀) — `validateCatalog`가 `refillOnUse`일 때 `kind==='slot'`만 요구하고 `intervalMinutes`(1~10080)만 검증한다.
+- `p.refillAnchorAt`(신규 `ruleProgress` 필드, ms epoch 또는 `null`/`undefined`): `undefined`=한 번도 안 건드림(최초 sync에서 `held`를 `maxHeld`로 채우고 `null`로 정착 — 고정 앵커 규칙의 "최초 sync엔 refillCount만큼만 채워짐" 관례를 안 따른다, 아직 아무것도 소모 안 했으니 가득 찬 게 맞다). `null`=현재 가득 참(회복 대기 없음). 그 외 값=현재 진행 중인 회복 체인의 anchor.
+- `settleRefillAnchor(r, p, now)`: `p.held`를 바꾸는 모든 지점(`complete`/`manual-add`/`manual-remove`/`undo`) 직후 호출하는 유일한 anchor 관리 지점. "anchor가 없고 아직 안 가득 참"일 때만 `now`로 새로 잡고, 이미 진행 중이면 안 건드리고, 가득 차면 무조건 `null`로 정리한다 — 그래서 여러 번 연속 소모해도 anchor는 최초 1회만 설정된다.
+- `syncOnUseRefill(r, p, now)`: `syncUniversalCatalog`가 이 방식 규칙에서 기존 `rulePeriod` 기반 루프 대신 타는 별도 경로. anchor를 `now`로 리셋하지 않고 정확히 경과한 틱 수만큼만 전진시킨다(위상 유지) — 13:00에 확인하든 14:00에 확인하든 같은 결과가 나온다.
+- `rulePeriod(g,r,now)`도 이 방식 규칙에서 분기: anchor가 없으면 `null`(고정 기간 형식과 동일), 있으면 `floor((now-anchor)/intervalMs)`. 기존 실행취소 안전장치(`entry.periodKey !== rulePeriod(...)`이면 버림)가 그대로 재사용되므로 별도 undo 로직이 필요 없다 — 클릭과 실행취소 사이에 틱이 한 번이라도 지나가면 안전하게 무시된다.
+- `ruleRevisionKey`에 `r.refillOnUse` 포함(이 설정을 바꾸는 편집은 revision을 올린다). `ruleScheduleText`도 이 방식 규칙 전용 문구("사용 시점 기준 매 N마다 회복")를 반환한다.
+- 프리셋: `duelists`(듀얼링크스)/`free-pack`/`challenge-power`(포켓몬 포켓) 셋 다 `refillOnUse:true`로 전환, `anchorTime` 제거. `missions`(스냅)는 실제로 고정 벽시계 갱신이라 그대로 둔다. **기존에 이미 등록된 게임엔 소급 적용하지 않는다**(프리셋 변경이 이미 만들어진 게임의 저장된 설정을 건드리지 않는 기존 원칙, `tests/catalog-presets-v2.test.cjs`에 이미 검증됨).
+- `tests/catalog-interval-v2.test.cjs`에 신규(최초 sync엔 가득 참, 사용자가 준 12:00/12:05→13:00/14:00 예시 재현, 다중 틱 catch-up, 실행취소 시 anchor 복원 두 케이스, periodKey 불일치로 실행취소 안전 무시, manual-add로 anchor 정리, 검증 예외) + `tests/catalog-additional.test.cjs`에 신규(아래 시간표 관련) 추가 — `npm test` 98/98 통과.
+- 편집기(Track 2) UI: `GPT_TASK_BRIEF_TODAY_SCHEDULE.md`로 위임(마법사 1단계에 체크박스, 켜면 `anchorTime` 입력 숨김, `kind`를 게이지로 바꾸면 자동 해제).
+
+### `todaySchedule(now)` / `realtimeRefreshList(now)` — 메인 화면 "오늘의 시간표" (2026-09-27, game-config.js)
+
+사용자가 직접 요청: 메인 화면에 오늘 KST 기준으로 각 게임의 항목이 몇 시에 갱신되는지 시각별로 묶어 보여준다(갱신 없는 시각은 생략). 항목이 클리어되거나 게임 알람이 꺼지면 더 이상 안 보인다. 초단위 간격(듀얼링크스 30분 등)까지 매 갱신 시각마다 나열하면 하루 수십 줄이 생기므로, 실제로 "고정된 벽시계 시각"이 있는 규칙만 이 시간표에 넣고 나머지는 별도 "실시간 갱신 목록"으로 뺀다.
+
+- `ruleRemaining(g, r)`: `universalStatus`가 이미 쓰던 "클리어 여부" 인라인 계산을 재사용 가능하게 뽑아낸 것(순수 리팩터, 동작 변화 없음) — 슬롯 `held>0`, 게이지 `value < (foldTarget ?? max)`, 종료된 지정 기간은 항상 false.
+- `isFixedScheduleRule(r)`: "고정된 벽시계 시각이 있는가" 판정. `daily`/`weekly`는 항상 참. `interval`은 `refillOnUse`면 무조건 거짓(공유 앵커 자체가 없음), 아니면 `intervalMinutes >= FIXED_SCHEDULE_MIN_MINUTES`(60)일 때만 참. `fixed`는 항상 거짓.
+- `ruleOccurrencesToday(g, r, now)`: 오늘(KST) 하루 동안 그 규칙이 갱신되는 모든 순간(ms, 오름차순). `daily`/`weekly`(오늘이 해당 요일일 때만)/고정 앵커 `interval`(여러 번일 수 있음, 예: 스냅 04:00/12:00/20:00)을 계산. `fixed`와 `refillOnUse`는 `[]`.
+- `todaySchedule(now)`: 등록되고 뮤트 안 된 모든 게임을 순회하며 `isFixedScheduleRule && ruleRemaining`인 규칙만 오늘의 발생 시각별로 묶는다. `{ms, games:[{name, items:[규칙이름...]}]}[]`(시각 오름차순) 반환 — 같은 시각에 여러 게임/규칙이 겹치면 한 시각 버킷에 다 모인다.
+- `nextIntervalOccurrence(r, now)` / `realtimeRefreshList(now)`: `isFixedScheduleRule`이 아닌 `interval` 규칙(빠른 고정 앵커 + 모든 `refillOnUse`)을 "다음 회복 시각"순으로 나열. `refillOnUse`는 `p.refillAnchorAt + intervalMs`를, 고정 앵커는 `nextIntervalOccurrence`를 쓴다. 슬롯이 이미 `maxHeld`면(카운트다운할 대상이 없음) 제외.
+- 둘 다 순수 함수(state 변경 없음) — UI는 렌더마다 호출만 하면 된다. `tests/catalog-additional.test.cjs`에 7개 추가(시각 그룹화, 클리어/뮤트 제외, 주간 요일 불일치 제외, 코스 간격은 시간표에, 짧은 간격은 실시간으로, `refillOnUse`는 간격 길이 무관 항상 실시간으로, 이미 가득 찬 건 실시간 목록서도 제외).
+- UI(Track 2): `GPT_TASK_BRIEF_TODAY_SCHEDULE.md`로 위임 — `overview.js`의 `renderOverview()`에 두 섹션 추가, 실시간 목록의 초 단위 갱신은 `manager.js`의 기존 훅 `updateCatalogClocks()`(지금까지 빈 함수)를 재사용.
+
 ---
 
 **통합 확인(2026-09-19): 위 계약은 확정본이다.** Track 1이 실제로 `catalog-engine.js`를 구현했고, Track 2가 이미 작성해 둔 `catalog-view.js`/`catalog-editor.js`/`setup.js`와 실제 harness(브라우저 아님, node:test용 DOM 어댑터)를 통해 카드 렌더링·클릭 완료/증가·되돌리기·지정 기간 종료/삭제·패스 레벨 수동 증가까지 end-to-end로 맞물려 동작하는 것을 확인했다. `manager.js`/`alerts.js`/`refresh-scheduler.js`/`overview.js`(둘 다 원래 소유 트랙 없음)의 옛 시그니처 호출부도 이번에 같이 맞췄다 — 자세한 내용은 GPT_TRACK2_STATUS.md의 "Claude 확인 사항"을 참고.

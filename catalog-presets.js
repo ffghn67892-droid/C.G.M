@@ -28,10 +28,18 @@
 // - Pokemon Pocket's "무료 팩"/"챌린지 파워" and Duel Links' "일반 듀얼리스트" were `resource`
 //   type (continuous recharge up to a cap - packs/challenge power +1 every 12 hours per the
 //   old alerts.js capacities of 2 and 5, duelists +1 every 30 minutes up to 10) - all three
-//   are plain slots on an interval now (intervalMinutes 720/720/30). This trades an exact
-//   per-player countdown for a plain rising count anchored to a fixed clock (the user only
-//   sees how many of the cap they currently have, not exactly when the next one lands) -
-//   the explicit tradeoff requested: simpler than a real timer, still answers "is it full".
+//   are plain slots on an interval now (intervalMinutes 720/720/30).
+//
+// refillOnUse (2026-09-27): initially these three used a fixed-anchor interval like Snap's
+// (a shared wall-clock schedule), trading an exact per-player countdown for a plain rising
+// count. The user pointed out that's wrong for these specific games - in the real games,
+// each one recovers on its OWN per-player timer that starts ticking from whenever it was
+// last consumed while full, not from a server-wide clock (Snap's is genuinely a shared
+// clock, so `missions` below is untouched). All three now set `refillOnUse: true` and have
+// no `anchorTime` at all (see catalog-engine.js's settleRefillAnchor/syncOnUseRefill) -
+// existing already-registered games are NOT retroactively migrated to this (same principle
+// as changing a preset never touching an already-created game's stored schedule,
+// tests/catalog-presets-v2.test.cjs).
 const CATALOG_PRESETS = [
   'mtga',
   'hearthstone',
@@ -121,8 +129,8 @@ function presetTrackerRules(id) {
     return [
       trackerSlotRule('weekly', '주간 미션', 'weekly', 6, 6),
       trackerSlotRule('duelists', '일반 듀얼리스트', 'interval', 1, 10, {
-        anchorTime: '00:00',
-        intervalMinutes: 30
+        intervalMinutes: 30,
+        refillOnUse: true
       })
     ];
   if (id === 'snap')
@@ -140,12 +148,12 @@ function presetTrackerRules(id) {
     return [
       trackerSlotRule('daily', '일일 미션', 'daily', 7, 7),
       trackerSlotRule('free-pack', '무료 팩', 'interval', 1, 2, {
-        anchorTime: '00:00',
-        intervalMinutes: 720
+        intervalMinutes: 720,
+        refillOnUse: true
       }),
       trackerSlotRule('challenge-power', '챌린지 파워', 'interval', 1, 5, {
-        anchorTime: '00:00',
-        intervalMinutes: 720
+        intervalMinutes: 720,
+        refillOnUse: true
       })
     ];
   return [];

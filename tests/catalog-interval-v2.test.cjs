@@ -250,4 +250,160 @@ test('Snap, Pokemon Pocket and Duel Links presets use interval format for real s
     [duelists.format, duelists.intervalMinutes, duelists.refillCount, duelists.maxHeld],
     ['interval', 30, 1, 10]
   );
+
+  // 2026-09-27: these three recover on their own per-player timer starting from whenever
+  // last consumed while full, not from a shared clock - Snap's is a genuine shared clock,
+  // so `missions` keeps anchorTime and refillOnUse is absent from it.
+  for (const r of [pack, power, duelists]) {
+    assert.equal(r.refillOnUse, true);
+    assert.equal(r.anchorTime, undefined);
+  }
+  assert.equal(missions.refillOnUse, undefined);
+});
+
+// refillOnUse (2026-09-27): "수치가 줄어든 순간 그 시점이 바로 갱신 시점입니다... 회복 간격은
+// 고정이며 타이머 스타트만 수치가 줄어든 시점" - one chained timer anchored at the first drop
+// from maxHeld, not one independent timer per click.
+function seedOnUse(a, overrides = {}) {
+  seed(a, [
+    {
+      id: 'r',
+      name: '회복형',
+      format: 'interval',
+      kind: 'slot',
+      refillCount: 1,
+      maxHeld: 2,
+      intervalMinutes: 60,
+      refillOnUse: true,
+      ...overrides
+    }
+  ]);
+}
+function held(a) {
+  return a.run('ruleProgress(state.games.kards, catalogRules(state.games.kards)[0]).held');
+}
+function anchor(a) {
+  return a.run(
+    'ruleProgress(state.games.kards, catalogRules(state.games.kards)[0]).refillAnchorAt'
+  );
+}
+
+test('a never-touched refillOnUse rule starts full, not at refillCount', () => {
+  const a = start();
+  seedOnUse(a);
+  assert.equal(held(a), 2);
+  assert.equal(anchor(a), null);
+});
+
+test('refillOnUse: exact user scenario - 12:00 and 12:05 clicks recover at 13:00 and 14:00, not 13:05', () => {
+  const a = start();
+  a.setTime('2026-09-10T12:00:00+09:00');
+  seedOnUse(a);
+  assert.equal(a.run("catalogAction('kards','r','complete')"), true);
+  assert.equal(held(a), 1, '2/2 -> 1/2 at 12:00');
+  const anchorAt12 = anchor(a);
+  a.advance(5 * 60000); // 12:05
+  assert.equal(a.run("catalogAction('kards','r','complete')"), true);
+  assert.equal(held(a), 0, '1/2 -> 0/2 at 12:05');
+  assert.equal(anchor(a), anchorAt12, 'the second click does not restart the chain');
+  a.advance(55 * 60000); // 13:00
+  a.run('syncGame("kards")');
+  assert.equal(held(a), 1, 'one tick pays off the first click at 13:00, not 13:05');
+  a.advance(60 * 60000); // 14:00
+  a.run('syncGame("kards")');
+  assert.equal(held(a), 2, 'the second tick pays off the second click at 14:00');
+  assert.equal(anchor(a), null, 'fully recovered - chain stops until it drops again');
+});
+
+test('refillOnUse catches up multiple elapsed ticks at once after being closed a while', () => {
+  const a = start();
+  a.setTime('2026-09-10T12:00:00+09:00');
+  seedOnUse(a, { maxHeld: 5, refillCount: 1 });
+  a.run("catalogAction('kards','r','complete')");
+  a.run("catalogAction('kards','r','complete')");
+  a.run("catalogAction('kards','r','complete')");
+  assert.equal(held(a), 2);
+  a.advance(3.5 * 3600000); // 3 full ticks plus a partial one
+  a.run('syncGame("kards")');
+  assert.equal(held(a), 5, 'clamped to maxHeld even though 2 + 3 would only reach 5 exactly');
+  assert.equal(anchor(a), null);
+});
+
+test('refillOnUse: undo right after the depleting click clears the anchor back to null', () => {
+  const a = start();
+  a.setTime('2026-09-10T12:00:00+09:00');
+  seedOnUse(a);
+  a.run("catalogAction('kards','r','complete')");
+  assert.equal(held(a), 1);
+  assert.notEqual(anchor(a), null);
+  assert.equal(a.run("catalogAction('kards','r','undo')"), true);
+  assert.equal(held(a), 2, 'restored to full');
+  assert.equal(anchor(a), null, 'anchor cleared since we are back to full');
+});
+
+test('refillOnUse: undoing the second of two quick clicks leaves the still-running anchor untouched', () => {
+  const a = start();
+  a.setTime('2026-09-10T12:00:00+09:00');
+  seedOnUse(a);
+  a.run("catalogAction('kards','r','complete')");
+  const anchorAfterFirst = anchor(a);
+  a.advance(60000);
+  a.run("catalogAction('kards','r','complete')");
+  assert.equal(held(a), 0);
+  assert.equal(a.run("catalogAction('kards','r','undo')"), true);
+  assert.equal(held(a), 1, 'only the second click is undone');
+  assert.equal(anchor(a), anchorAfterFirst, 'the original chain keeps running, untouched');
+});
+
+test('refillOnUse: undo is safely dropped once a tick has fired since the click (periodKey mismatch)', () => {
+  const a = start();
+  a.setTime('2026-09-10T12:00:00+09:00');
+  seedOnUse(a);
+  a.run("catalogAction('kards','r','complete')");
+  assert.equal(held(a), 1);
+  a.advance(60 * 60000); // exactly one interval later - the tick recovers it back to full
+  assert.equal(
+    a.run("catalogAction('kards','r','undo')"),
+    true,
+    'undo call succeeds but is a no-op'
+  );
+  assert.equal(held(a), 2, 'left at the recovered value, not decremented by the stale undo');
+});
+
+test('refillOnUse: manual-add reaching maxHeld clears the anchor too', () => {
+  const a = start();
+  a.setTime('2026-09-10T12:00:00+09:00');
+  seedOnUse(a);
+  a.run("catalogAction('kards','r','complete')");
+  assert.notEqual(anchor(a), null);
+  assert.equal(a.run("catalogAction('kards','r','manual-add')"), true);
+  assert.equal(held(a), 2);
+  assert.equal(anchor(a), null);
+});
+
+test('refillOnUse rules skip anchorTime validation but still require kind slot and a valid interval', () => {
+  const a = start();
+  const base = {
+    id: 'r',
+    name: '회복형',
+    format: 'interval',
+    kind: 'slot',
+    refillCount: 1,
+    maxHeld: 2,
+    refillOnUse: true
+  };
+  assert.doesNotThrow(() =>
+    a.run(`validateCatalog(${JSON.stringify([{ ...base, intervalMinutes: 60 }])})`)
+  );
+  assert.throws(
+    () => a.run(`validateCatalog(${JSON.stringify([{ ...base, intervalMinutes: 0 }])})`),
+    'still validates intervalMinutes'
+  );
+  assert.throws(
+    () =>
+      a.run(
+        `validateCatalog(${JSON.stringify([{ ...base, kind: 'gauge', min: 0, max: 10, intervalMinutes: 60 }])})`
+      ),
+    'refillOnUse is slot-only'
+  );
 });

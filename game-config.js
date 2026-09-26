@@ -102,6 +102,104 @@ const SHOP_ITEMS = [
 function periodAt(hour, minute = 0, now = new Date()) {
   return Math.floor((now.getTime() + (9 - hour) * HOUR_MS - minute * 60000) / DAY_MS);
 }
+
+// Today's schedule (overview.js): interval rules faster than this have no meaningful
+// shared clock time to list - they go through realtimeRefreshList() instead.
+const FIXED_SCHEDULE_MIN_MINUTES = 60;
+
+function kstTodayBounds(now = new Date()) {
+  const start = periodAt(0, 0, now) * DAY_MS - 9 * HOUR_MS; // KST 00:00 of "today", in UTC ms
+  return [start, start + DAY_MS];
+}
+function kstWeekday(now = new Date()) {
+  return (((periodAt(0, 0, now) + 4) % 7) + 7) % 7; // 0=일..6=토 - same +4 epoch-weekday offset rulePeriod uses
+}
+// All of today's (KST) reset instants for a recurring rule, ascending. [] for 'fixed', for
+// refillOnUse interval rules (no shared clock - see catalog-engine.js), and for 'weekly'
+// rules whose weekday isn't today.
+function ruleOccurrencesToday(g, r, now = new Date()) {
+  const [dayStart, dayEnd] = kstTodayBounds(now);
+  if (r.format === 'fixed') return [];
+  if (r.format === 'interval') {
+    if (r.refillOnUse) return [];
+    const ms = r.intervalMinutes * 60000;
+    const [h, m] = r.anchorTime.split(':').map(Number);
+    const offset = m * 60000 - (9 - h) * HOUR_MS; // same reference frame as intervalPeriodAt
+    const out = [];
+    for (let k = Math.ceil((dayStart - offset) / ms); ; k++) {
+      const t = k * ms + offset;
+      if (t >= dayEnd) break;
+      if (t >= dayStart) out.push(t);
+    }
+    return out;
+  }
+  const sched = ruleResetSchedule(g, r);
+  if (r.format === 'weekly' && sched.weekday !== kstWeekday(now)) return [];
+  const [h, m] = sched.time.split(':').map(Number);
+  return [dayStart + h * HOUR_MS + m * 60000];
+}
+// Next fixed-anchor occurrence strictly after `now` (only meaningful for non-refillOnUse
+// interval rules - the realtime list uses refillAnchorAt directly for refillOnUse ones).
+function nextIntervalOccurrence(r, now = new Date()) {
+  const ms = r.intervalMinutes * 60000;
+  const [h, m] = r.anchorTime.split(':').map(Number);
+  const offset = m * 60000 - (9 - h) * HOUR_MS;
+  const k = Math.floor((now.getTime() - offset) / ms) + 1;
+  return k * ms + offset;
+}
+// A rule belongs in the fixed schedule only if it has an actual shared wall-clock reset
+// time: daily/weekly, or a fixed-anchor interval at/above FIXED_SCHEDULE_MIN_MINUTES.
+// refillOnUse rules never qualify, regardless of intervalMinutes - there is no shared
+// anchor, only a per-depletion chain (catalog-engine.js's settleRefillAnchor).
+function isFixedScheduleRule(r) {
+  if (r.format === 'fixed') return false;
+  if (r.format !== 'interval') return true; // daily/weekly
+  return !r.refillOnUse && r.intervalMinutes >= FIXED_SCHEDULE_MIN_MINUTES;
+}
+// Today's fixed-time schedule across every registered, non-muted game, grouped by KST
+// clock instant, ascending. A rule drops out once ruleRemaining() is false (catalog-engine.js).
+function todaySchedule(now = new Date()) {
+  const byTime = new Map();
+  for (const [id, name] of GAMES) {
+    const g = state.games[id];
+    if (!g?.profile?.registeredAt || g.profile.mutedUntil > now.getTime()) continue;
+    for (const r of catalogRules(g)) {
+      if (!isFixedScheduleRule(r) || !ruleRemaining(g, r)) continue;
+      for (const ms of ruleOccurrencesToday(g, r, now)) {
+        const bucket = byTime.get(ms) || new Map();
+        (bucket.get(id) || bucket.set(id, { name, items: [] }).get(id)).items.push(r.name);
+        byTime.set(ms, bucket);
+      }
+    }
+  }
+  return [...byTime.entries()]
+    .sort(([a], [b]) => a - b)
+    .map(([ms, bucket]) => ({ ms, games: [...bucket.values()] }));
+}
+// Everything NOT in the fixed schedule (sub-hour fixed-anchor intervals, and all
+// refillOnUse rules) as a live "next refill" list, ascending by next-refill time. Drops a
+// rule once it has no remaining work, or a slot rule that's already at maxHeld (nothing
+// left to count down to - the game's own card already shows the full count persistently).
+function realtimeRefreshList(now = new Date()) {
+  const out = [];
+  for (const [id, name] of GAMES) {
+    const g = state.games[id];
+    if (!g?.profile?.registeredAt || g.profile.mutedUntil > now.getTime()) continue;
+    for (const r of catalogRules(g)) {
+      if (r.format !== 'interval' || isFixedScheduleRule(r) || !ruleRemaining(g, r)) continue;
+      const p = ruleProgress(g, r);
+      if (r.kind === 'slot' && p.held >= r.maxHeld) continue;
+      const nextAt = r.refillOnUse
+        ? p.refillAnchorAt == null
+          ? null
+          : p.refillAnchorAt + r.intervalMinutes * 60000
+        : nextIntervalOccurrence(r, now);
+      if (nextAt == null) continue;
+      out.push({ gameId: id, gameName: name, ruleId: r.id, ruleName: r.name, nextAt });
+    }
+  }
+  return out.sort((a, b) => a.nextAt - b.nextAt);
+}
 function snapSlot(now = new Date()) {
   return Math.floor((now.getTime() + 5 * HOUR_MS) / (8 * HOUR_MS));
 }

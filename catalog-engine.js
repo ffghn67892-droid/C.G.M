@@ -60,7 +60,13 @@ function validateCatalog(rules) {
         throw Error('지정 기간의 시작일·종료일·종료 시각을 확인하세요.');
     }
     if (r.format === 'interval') {
-      if (!time(r.anchorTime) || !num(r.intervalMinutes, 1, 10080))
+      // refillOnUse rules have no shared anchor - the chain starts at whatever moment the
+      // rule next drops from maxHeld (settleRefillAnchor), so anchorTime is meaningless.
+      if (r.refillOnUse) {
+        if (r.kind !== 'slot')
+          throw Error('사용 시점 기준 회복은 슬롯형에서만 사용할 수 있습니다.');
+        if (!num(r.intervalMinutes, 1, 10080)) throw Error('갱신 간격(1분~7일)을 확인하세요.');
+      } else if (!time(r.anchorTime) || !num(r.intervalMinutes, 1, 10080))
         throw Error('기준 시각과 갱신 간격(1분~7일)을 확인하세요.');
     }
     if (r.kind === 'slot') {
@@ -120,6 +126,17 @@ function intervalPeriodAt(r, now = new Date()) {
 // rules have no recurring period and always return null.
 function rulePeriod(g, r, now = new Date()) {
   if (r.format === 'fixed') return null;
+  // refillOnUse has no shared anchor - its "period" is how many whole ticks have elapsed
+  // since the chain last (re)started (p.refillAnchorAt, settleRefillAnchor below). Not
+  // running (rule is full) reads as null, same as 'fixed'. This still lets catalogAction's
+  // undo check (entry.periodKey !== rulePeriod(...)) safely invalidate an undo whenever a
+  // tick fired between the click and the undo attempt - no separate mechanism needed.
+  if (r.format === 'interval' && r.refillOnUse) {
+    const p = ruleProgress(g, r);
+    return p.refillAnchorAt == null
+      ? null
+      : Math.floor((now.getTime() - p.refillAnchorAt) / (r.intervalMinutes * 60000));
+  }
   if (r.format === 'interval') return intervalPeriodAt(r, now);
   const sched = ruleResetSchedule(g, r),
     [h, m] = sched.time.split(':').map(Number),
@@ -138,6 +155,8 @@ function intervalLengthText(minutes) {
 
 function ruleScheduleText(g, r) {
   if (r.format === 'fixed') return `지정 기간 ${r.startDate} ~ ${r.endDate} ${r.endTime} KST`;
+  if (r.format === 'interval' && r.refillOnUse)
+    return `사용 시점 기준 매 ${intervalLengthText(r.intervalMinutes)}마다 회복`;
   if (r.format === 'interval')
     return `${r.anchorTime} 기준 매 ${intervalLengthText(r.intervalMinutes)}마다 KST`;
   const sched = ruleResetSchedule(g, r);
@@ -166,8 +185,33 @@ function ruleRevisionKey(r) {
     r.endTime,
     r.resetOverride,
     r.anchorTime,
-    r.intervalMinutes
+    r.intervalMinutes,
+    r.refillOnUse
   ]);
+}
+
+// refillOnUse: anchor exists iff currently depleted (held < maxHeld). Only the FIRST drop
+// from maxHeld sets it (the "else if anchor==null" guard) - later drops while already
+// depleted leave it untouched, so consuming twice in a row still only starts one chained
+// timer, not two independent ones. Reaching maxHeld through ANY path (click, undo,
+// manual-add) clears it back to null. Call after every p.held mutation on such a rule.
+function settleRefillAnchor(r, p, now = Date.now()) {
+  if (r.format !== 'interval' || !r.refillOnUse) return;
+  if (p.held >= r.maxHeld) p.refillAnchorAt = null;
+  else if (p.refillAnchorAt == null) p.refillAnchorAt = now;
+}
+
+// Pays off whole ticks elapsed since the anchor, advancing the anchor by exactly that many
+// tick-lengths (never resetting it to `now`) so the result only depends on elapsed time,
+// not on how often this has been called - checking at 13:00 or 14:00 against a 12:00
+// anchor with a 1h interval must agree once both have actually passed 13:00.
+function syncOnUseRefill(r, p, now) {
+  if (p.refillAnchorAt == null || p.held >= r.maxHeld) return;
+  const ms = r.intervalMinutes * 60000;
+  const elapsed = Math.floor((now.getTime() - p.refillAnchorAt) / ms);
+  if (elapsed <= 0) return;
+  p.held = Math.min(r.maxHeld, p.held + elapsed * r.refillCount);
+  p.refillAnchorAt = p.held >= r.maxHeld ? null : p.refillAnchorAt + elapsed * ms;
 }
 
 // Period rollover: slot refills by refillCount per elapsed period (clamped to maxHeld,
@@ -180,6 +224,16 @@ function syncUniversalCatalog(g, now = new Date()) {
     const p = ruleProgress(g, r);
     if (r.format === 'fixed') {
       p.ended = endMomentMs(r) <= now.getTime();
+      continue;
+    }
+    if (r.format === 'interval' && r.refillOnUse) {
+      // Never touched before: nothing has been consumed yet, so it starts full rather than
+      // inheriting the anchor-mode convention of an implicit first refill (there is no
+      // shared clock this rule could have been "missing" refills from before registration).
+      if (p.refillAnchorAt === undefined) {
+        p.held = r.maxHeld;
+        p.refillAnchorAt = null;
+      } else syncOnUseRefill(r, p, now);
       continue;
     }
     const period = rulePeriod(g, r, now),
@@ -228,8 +282,10 @@ function catalogAction(gameId, ruleId, action, payload = {}) {
       // existed have no `revision`/`periodKey` and always fail this check, by design.
       if (r.format === 'fixed' && p.ended) return true;
       if (entry.revision !== (r.revision ?? 1) || entry.periodKey !== rulePeriod(g, r)) return true;
-      if (entry.kind === 'slot') p.held = Math.max(0, Math.min(r.maxHeld, p.held + entry.delta));
-      else p.value = Math.max(r.min, Math.min(r.max, p.value - entry.delta));
+      if (entry.kind === 'slot') {
+        p.held = Math.max(0, Math.min(r.maxHeld, p.held + entry.delta));
+        settleRefillAnchor(r, p);
+      } else p.value = Math.max(r.min, Math.min(r.max, p.value - entry.delta));
       return true;
     }
     const r = catalogRules(g).find(x => x.id === ruleId);
@@ -240,6 +296,7 @@ function catalogAction(gameId, ruleId, action, payload = {}) {
     if (action === 'complete') {
       if (r.kind !== 'slot' || p.held <= 0 || ended) return false;
       p.held -= 1;
+      settleRefillAnchor(r, p);
       pushActionHistory(g, {
         ruleId,
         revision: r.revision ?? 1,
@@ -273,12 +330,14 @@ function catalogAction(gameId, ruleId, action, payload = {}) {
     if (action === 'manual-add') {
       if (r.kind !== 'slot' || p.held >= r.maxHeld) return false;
       p.held += 1;
+      settleRefillAnchor(r, p);
       g.actionHistory = (g.actionHistory || []).filter(e => e.ruleId !== ruleId);
       return true;
     }
     if (action === 'manual-remove') {
       if (r.kind !== 'slot' || p.held <= 0) return false;
       p.held -= 1;
+      settleRefillAnchor(r, p);
       g.actionHistory = (g.actionHistory || []).filter(e => e.ruleId !== ruleId);
       return true;
     }
@@ -303,26 +362,30 @@ function catalogAction(gameId, ruleId, action, payload = {}) {
   });
 }
 
-// count = number of rules with real remaining work. Gauges: foldTarget (falling back
-// to the true max when unset) counts as "done" here too, so the game badge agrees with
-// the card's own checkmark state instead of staying "!" until a far-off true max is
-// reached (2026-09-22, supersedes the old "foldTarget never affects this" rule). Weekly
-// rules never count toward the badge at all: they're often gated by capped daily-refill
-// progress the player can't force within the visible window, so flagging them
-// urgent/pending would be structurally misleading - the cards still render normally,
-// this only excludes them from the aggregate.
+// Whether a rule still has real remaining work (not yet "cleared"). Gauges: foldTarget
+// (falling back to the true max when unset) counts as "done" here too, matching the
+// card's own checkmark state instead of staying open until a far-off true max is reached
+// (2026-09-22, supersedes the old "foldTarget never affects this" rule). Factored out of
+// universalStatus so game-config.js's schedule/realtime-list aggregators (§10) can reuse
+// the exact same "cleared" concept without duplicating it.
+function ruleRemaining(g, r) {
+  const p = ruleProgress(g, r);
+  if (r.format === 'fixed' && p.ended) return false;
+  const goal = r.kind === 'gauge' ? (p.foldTarget ?? r.max) : null;
+  return r.kind === 'slot' ? p.held > 0 : p.value < goal;
+}
+
+// count = number of rules with real remaining work. Weekly rules never count toward the
+// badge at all: they're often gated by capped daily-refill progress the player can't
+// force within the visible window, so flagging them urgent/pending would be structurally
+// misleading - the cards still render normally, this only excludes them from the aggregate.
 function universalStatus(g) {
   let count = 0,
     urgent = false;
   for (const r of catalogRules(g)) {
-    if (r.format === 'weekly') continue;
-    const p = ruleProgress(g, r);
-    if (r.format === 'fixed' && p.ended) continue;
-    const goal = r.kind === 'gauge' ? (p.foldTarget ?? r.max) : null;
-    const remaining = r.kind === 'slot' ? p.held > 0 : p.value < goal;
-    if (!remaining) continue;
+    if (r.format === 'weekly' || !ruleRemaining(g, r)) continue;
     count++;
-    if (r.kind === 'slot' && p.held >= r.maxHeld) urgent = true;
+    if (r.kind === 'slot' && ruleProgress(g, r).held >= r.maxHeld) urgent = true;
   }
   return { color: urgent ? 'urgent' : count ? 'pending' : 'done', label: count ? '!' : '✓', count };
 }
